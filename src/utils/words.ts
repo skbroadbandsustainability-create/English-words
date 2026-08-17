@@ -1,31 +1,5 @@
 import type { WordEntry } from '../types'
 
-// 학습 단어로는 의미가 약한 아주 흔한 기능어들은 사진에서 추출할 때 기본적으로 걸러낸다.
-const STOPWORDS = new Set([
-  'a', 'an', 'the', 'is', 'it', 'to', 'of', 'in', 'on', 'at', 'and', 'or', 'but', 'so', 'for', 'if', 'be',
-  'am', 'are', 'was', 'were', 'do', 'does', 'did', 'has', 'have', 'had', 'this', 'that', 'these', 'those',
-  'i', 'you', 'he', 'she', 'we', 'they', 'my', 'your', 'his', 'her', 'our', 'their', 'with', 'as', 'by',
-  'from', 'not', 'no', 'yes', 'can', 'will', 'just', 'out', 'up', 'down', 'into', 'over', 'under', 'than',
-  'then', 'there', 'here', 'when', 'what', 'who', 'how',
-])
-
-/** OCR로 읽은 텍스트에서 학습할 만한 영단어 후보를 뽑아낸다(중복 제거, 흔한 기능어 제외). */
-export function extractCandidateWords(text: string, maxCount = 40): string[] {
-  const matches = text.match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) ?? []
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const raw of matches) {
-    const word = raw.toLowerCase()
-    if (word.length < 2 || word.length > 20) continue
-    if (STOPWORDS.has(word)) continue
-    if (seen.has(word)) continue
-    seen.add(word)
-    result.push(word)
-    if (result.length >= maxCount) break
-  }
-  return result
-}
-
 export function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
