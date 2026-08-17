@@ -1,0 +1,60 @@
+import { useState } from 'react'
+import type { QuizQuestion as QuizQuestionType } from '../utils/words'
+import { playPronunciation } from '../services/speech'
+
+interface Props {
+  question: QuizQuestionType
+  index: number
+  total: number
+  onAnswered: (correct: boolean) => void
+}
+
+export default function QuizQuestion({ question, index, total, onAnswered }: Props) {
+  const [selected, setSelected] = useState<number | null>(null)
+
+  function choose(choiceIndex: number) {
+    if (selected !== null) return
+    setSelected(choiceIndex)
+    const correct = choiceIndex === question.answerIndex
+    window.setTimeout(() => onAnswered(correct), 900)
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <p className="text-center text-sm font-bold text-slate-400">
+        {index + 1} / {total}
+      </p>
+
+      <div className="flex flex-col items-center gap-2 rounded-3xl bg-white p-6 shadow-sm">
+        <p className="font-display text-3xl text-slate-800 sm:text-4xl">{question.word.word}</p>
+        <button
+          onClick={() => playPronunciation(question.word.word, question.word.audioUrl)}
+          className="no-select rounded-full bg-sky-100 px-4 py-2 text-sm font-bold text-sky-600"
+        >
+          🔊 발음 듣기
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {question.choices.map((choice, i) => {
+          const isSelected = selected === i
+          const isAnswer = i === question.answerIndex
+          let style = 'border-slate-200 bg-white text-slate-700'
+          if (selected !== null && isAnswer) style = 'border-emerald-400 bg-emerald-50 text-emerald-700'
+          else if (isSelected) style = 'border-rose-400 bg-rose-50 text-rose-600'
+
+          return (
+            <button
+              key={choice + i}
+              onClick={() => choose(i)}
+              disabled={selected !== null}
+              className={`rounded-2xl border-2 px-4 py-4 text-left text-lg font-bold transition-colors ${style}`}
+            >
+              {choice}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

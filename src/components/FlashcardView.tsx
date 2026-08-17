@@ -1,0 +1,91 @@
+import { useEffect, useMemo, useState } from 'react'
+import WordCard from './WordCard'
+import { useWords } from '../store/wordStore'
+import { playPronunciation } from '../services/speech'
+import { shuffle } from '../utils/words'
+
+export default function FlashcardView() {
+  const { state, dispatch } = useWords()
+  const [order, setOrder] = useState<string[]>([])
+  const [index, setIndex] = useState(0)
+  const [flipped, setFlipped] = useState(false)
+
+  useEffect(() => {
+    // 익숙하지 않은(familiarity 낮은) 단어일수록 더 자주 나오게 가중치를 준다.
+    const weighted = state.words.flatMap((w) =>
+      Array(Math.max(1, 3 - Math.min(w.familiarity, 2))).fill(w.id),
+    )
+    setOrder(shuffle(weighted.length > 0 ? weighted : state.words.map((w) => w.id)))
+    setIndex(0)
+    setFlipped(false)
+  }, [state.words.length])
+
+  useEffect(() => {
+    if (state.words.length > 0) dispatch({ type: 'MARK_STUDIED_TODAY' })
+  }, [dispatch, state.words.length])
+
+  const currentWord = useMemo(() => {
+    if (order.length === 0) return undefined
+    const id = order[index % order.length]
+    return state.words.find((w) => w.id === id)
+  }, [order, index, state.words])
+
+  if (state.words.length === 0) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 px-6 py-16 text-center text-slate-400">
+        <p className="text-5xl">📸</p>
+        <p className="font-display text-xl text-slate-500">아직 모은 단어가 없어요</p>
+        <p>아래 '단어 추가' 탭에서 책 사진을 올리거나 단어를 입력해보세요!</p>
+      </div>
+    )
+  }
+
+  if (!currentWord) return null
+
+  function next() {
+    setFlipped(false)
+    setIndex((i) => i + 1)
+  }
+
+  function markKnow() {
+    dispatch({ type: 'BUMP_FAMILIARITY', id: currentWord!.id, delta: 1 })
+    next()
+  }
+
+  function markReview() {
+    dispatch({ type: 'BUMP_FAMILIARITY', id: currentWord!.id, delta: -1 })
+    next()
+  }
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-8 sm:px-6">
+      <p className="text-sm font-bold text-slate-400">
+        {(index % order.length) + 1} / {order.length}
+      </p>
+
+      <WordCard word={currentWord} flipped={flipped} onFlip={() => setFlipped((f) => !f)} />
+
+      <button
+        onClick={() => playPronunciation(currentWord.word, currentWord.audioUrl)}
+        className="no-select rounded-full bg-sky-100 px-6 py-3 text-lg font-bold text-sky-600 transition-transform active:scale-95"
+      >
+        🔊 발음 듣기
+      </button>
+
+      <div className="flex w-full max-w-sm gap-3">
+        <button
+          onClick={markReview}
+          className="no-select flex-1 rounded-2xl border-2 border-amber-300 bg-amber-50 py-4 text-lg font-bold text-amber-600 transition-transform active:scale-95"
+        >
+          🔁 다시 볼래요
+        </button>
+        <button
+          onClick={markKnow}
+          className="no-select flex-1 rounded-2xl border-2 border-emerald-400 bg-emerald-400 py-4 text-lg font-bold text-white transition-transform active:scale-95"
+        >
+          ✅ 알아요
+        </button>
+      </div>
+    </div>
+  )
+}
