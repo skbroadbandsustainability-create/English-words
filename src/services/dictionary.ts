@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from '../utils/fetchWithTimeout'
+
 export interface DictionaryResult {
   word: string
   phonetic?: string
@@ -42,7 +44,11 @@ export async function fetchWordInfo(word: string): Promise<DictionaryResult | nu
   if (!clean) return null
 
   try {
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`)
+    const res = await fetchWithTimeout(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`,
+      {},
+      8000,
+    )
     if (!res.ok) return null
     const data: ApiEntry[] = await res.json()
     const entry = data[0]

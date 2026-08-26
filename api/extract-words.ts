@@ -2,6 +2,9 @@ import { getGeminiClient, GEMINI_MODEL, WORDS_LIST_SCHEMA } from './_lib/gemini.
 import type { AiWord } from './_lib/gemini.js'
 import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
+// 사진 분석(비전)은 텍스트보다 오래 걸릴 수 있어, Vercel 무료 플랜 한도(60초)까지 늘려준다.
+export const config = { maxDuration: 60 }
+
 interface RequestBody {
   imageBase64?: string
   mediaType?: string

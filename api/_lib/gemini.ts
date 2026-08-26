@@ -40,12 +40,14 @@ const WORD_ITEM_SCHEMA: Schema = {
     synonyms: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: '비슷한 뜻의 영어 단어 (있는 만큼만, 최대 4개)',
+      description: '비슷한 뜻의 영어 단어. 가장 흔하고 쉬운 것 위주로 딱 2~3개만.',
+      maxItems: '3',
     },
     antonyms: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: '반대 뜻의 영어 단어 (있는 만큼만, 최대 4개)',
+      description: '반대 뜻의 영어 단어. 가장 흔하고 쉬운 것 위주로 딱 2~3개만.',
+      maxItems: '3',
     },
   },
   required: ['word', 'definitionEn', 'meaningKo'],
@@ -54,7 +56,7 @@ const WORD_ITEM_SCHEMA: Schema = {
 export const WORDS_LIST_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {
-    words: { type: Type.ARRAY, items: WORD_ITEM_SCHEMA },
+    words: { type: Type.ARRAY, items: WORD_ITEM_SCHEMA, maxItems: '20' },
   },
   required: ['words'],
 }

@@ -2,6 +2,9 @@ import { getGeminiClient, GEMINI_MODEL, SINGLE_WORD_SCHEMA } from './_lib/gemini
 import type { AiWord } from './_lib/gemini.js'
 import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
+// Vercel 기본 함수 실행 제한(무료 플랜 10초)보다 Gemini 응답이 늦을 수 있어 늘려준다.
+export const config = { maxDuration: 30 }
+
 interface RequestBody {
   word?: string
 }

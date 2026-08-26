@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from '../utils/fetchWithTimeout'
+
 export interface AiWordResult {
   word: string
   partOfSpeech?: string
@@ -58,11 +60,15 @@ function blobToBase64(blob: Blob): Promise<string> {
 /** 책 사진을 AI(Gemini)에게 보내 사진 속 영어 단어들을 뜻과 함께 정리해서 받아온다. */
 export async function extractWordsFromPhoto(file: File): Promise<AiWordResult[]> {
   const { base64, mediaType } = await fileToResizedBase64(file)
-  const res = await fetch('/api/extract-words', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageBase64: base64, mediaType }),
-  })
+  const res = await fetchWithTimeout(
+    '/api/extract-words',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: base64, mediaType }),
+    },
+    45000,
+  )
   if (!res.ok) {
     throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
   }
@@ -72,11 +78,15 @@ export async function extractWordsFromPhoto(file: File): Promise<AiWordResult[]>
 
 /** 단어 하나를 AI(Gemini)에게 물어서 뜻/유의어/반의어를 받아온다. */
 export async function lookupWordAi(word: string): Promise<AiWordResult | null> {
-  const res = await fetch('/api/word-info', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ word }),
-  })
+  const res = await fetchWithTimeout(
+    '/api/word-info',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word }),
+    },
+    25000,
+  )
   if (!res.ok) {
     throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
   }
