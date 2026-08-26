@@ -33,10 +33,10 @@ export default function WordCard({ word, flipped, onFlip }: Props) {
           <p className="font-display text-2xl text-slate-800">{word.word}</p>
           {word.meaningKo && <p className="text-xl font-bold text-emerald-700">{word.meaningKo}</p>}
           <p className="text-center text-base text-slate-600">{word.definitionEn}</p>
-          {word.synonyms.length > 0 && (
+          {(word.synonyms?.length ?? 0) > 0 && (
             <p className="text-center text-sm text-slate-500">비슷한 말: {word.synonyms.join(', ')}</p>
           )}
-          {word.antonyms.length > 0 && (
+          {(word.antonyms?.length ?? 0) > 0 && (
             <p className="text-center text-sm text-slate-500">반대말: {word.antonyms.join(', ')}</p>
           )}
           <a

@@ -52,6 +52,34 @@ function normalizeQuizResult(raw: unknown): QuizResult | null {
 }
 
 /**
+ * 단어 하나도, 배열이어야 할 필드(synonyms/antonyms)가 빠져있거나 다른 타입이면
+ * 화면에서 .length를 부르다가 죽으니, 여기서 안전한 배열로 채워 넣는다.
+ */
+function normalizeWordEntry(raw: unknown): WordEntry | null {
+  if (!raw || typeof raw !== 'object') return null
+  const w = raw as Record<string, unknown>
+  if (typeof w.id !== 'string' || typeof w.word !== 'string' || typeof w.definitionEn !== 'string') {
+    return null
+  }
+  return {
+    id: w.id,
+    word: w.word,
+    phonetic: typeof w.phonetic === 'string' ? w.phonetic : undefined,
+    audioUrl: typeof w.audioUrl === 'string' ? w.audioUrl : undefined,
+    partOfSpeech: typeof w.partOfSpeech === 'string' ? w.partOfSpeech : undefined,
+    definitionEn: w.definitionEn,
+    meaningKo: typeof w.meaningKo === 'string' ? w.meaningKo : undefined,
+    synonyms: Array.isArray(w.synonyms) ? w.synonyms.filter((x): x is string => typeof x === 'string') : [],
+    antonyms: Array.isArray(w.antonyms) ? w.antonyms.filter((x): x is string => typeof x === 'string') : [],
+    batchId: typeof w.batchId === 'string' ? w.batchId : '',
+    addedAt: typeof w.addedAt === 'string' ? w.addedAt : new Date().toISOString(),
+    source: w.source === 'manual' ? 'manual' : 'photo',
+    familiarity: typeof w.familiarity === 'number' ? w.familiarity : 0,
+    exampleSentence: typeof w.exampleSentence === 'string' ? w.exampleSentence : undefined,
+  }
+}
+
+/**
  * localStorage든 클라우드든, 어디서 온 상태 데이터든 이 함수를 거쳐야 안전하다.
  * 예전 버전 형식이거나 필드가 빠져있어도 기본값으로 채워서, 화면이 통째로 죽는 걸 막는다.
  */
@@ -59,7 +87,9 @@ function normalizeAppState(parsed: unknown): AppState {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return DEFAULT_STATE
   const p = parsed as Record<string, unknown>
   return {
-    words: Array.isArray(p.words) ? (p.words as WordEntry[]) : [],
+    words: Array.isArray(p.words)
+      ? (p.words as unknown[]).map(normalizeWordEntry).filter((w): w is WordEntry => w !== null)
+      : [],
     batches: Array.isArray(p.batches) ? (p.batches as Batch[]) : [],
     studyDates: Array.isArray(p.studyDates) ? (p.studyDates as unknown[]).filter((x): x is string => typeof x === 'string') : [],
     kidName: typeof p.kidName === 'string' ? p.kidName : DEFAULT_STATE.kidName,

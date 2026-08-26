@@ -375,10 +375,10 @@ function CandidateRow({
             placeholder="아이가 이해하기 쉬운 뜻을 적어주세요"
             className="mt-2 w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-base outline-none focus:border-sky-400"
           />
-          {candidate.synonyms.length > 0 && (
+          {(candidate.synonyms?.length ?? 0) > 0 && (
             <p className="mt-1 text-xs text-slate-400">비슷한 말: {candidate.synonyms.join(', ')}</p>
           )}
-          {candidate.antonyms.length > 0 && (
+          {(candidate.antonyms?.length ?? 0) > 0 && (
             <p className="text-xs text-slate-400">반대말: {candidate.antonyms.join(', ')}</p>
           )}
         </div>
