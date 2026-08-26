@@ -51,16 +51,29 @@ function normalizeQuizResult(raw: unknown): QuizResult | null {
   }
 }
 
+/**
+ * localStorage든 클라우드든, 어디서 온 상태 데이터든 이 함수를 거쳐야 안전하다.
+ * 예전 버전 형식이거나 필드가 빠져있어도 기본값으로 채워서, 화면이 통째로 죽는 걸 막는다.
+ */
+function normalizeAppState(parsed: unknown): AppState {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return DEFAULT_STATE
+  const p = parsed as Record<string, unknown>
+  return {
+    words: Array.isArray(p.words) ? (p.words as WordEntry[]) : [],
+    batches: Array.isArray(p.batches) ? (p.batches as Batch[]) : [],
+    studyDates: Array.isArray(p.studyDates) ? (p.studyDates as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+    kidName: typeof p.kidName === 'string' ? p.kidName : DEFAULT_STATE.kidName,
+    quizResults: Array.isArray(p.quizResults)
+      ? (p.quizResults as unknown[]).map(normalizeQuizResult).filter((r): r is QuizResult => r !== null)
+      : [],
+  }
+}
+
 function loadInitialState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_STATE
-    const parsed = JSON.parse(raw)
-    const merged: AppState = { ...DEFAULT_STATE, ...parsed }
-    merged.quizResults = Array.isArray(parsed.quizResults)
-      ? parsed.quizResults.map(normalizeQuizResult).filter((r: QuizResult | null): r is QuizResult => r !== null)
-      : []
-    return merged
+    return normalizeAppState(JSON.parse(raw))
   } catch {
     return DEFAULT_STATE
   }
@@ -133,10 +146,14 @@ export function WordProvider({ children }: { children: ReactNode }) {
   }, [state])
 
   const pullFromCloud = useCallback(async () => {
-    const cloud = await fetchCloudState()
-    if (cloud && cloud.updatedAt > lastKnownUpdatedAt.current) {
-      lastKnownUpdatedAt.current = cloud.updatedAt
-      dispatch({ type: 'IMPORT_STATE', state: cloud.state })
+    try {
+      const cloud = await fetchCloudState()
+      if (cloud && cloud.updatedAt > lastKnownUpdatedAt.current) {
+        lastKnownUpdatedAt.current = cloud.updatedAt
+        dispatch({ type: 'IMPORT_STATE', state: normalizeAppState(cloud.state) })
+      }
+    } catch {
+      // 클라우드에서 받아오다 문제가 생겨도 화면은 지금 상태 그대로 유지한다.
     }
   }, [])
 
