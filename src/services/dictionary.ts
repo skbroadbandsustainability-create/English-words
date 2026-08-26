@@ -1,5 +1,3 @@
-import { lemmaCandidates } from '../utils/lemmatize'
-
 export interface DictionaryResult {
   word: string
   phonetic?: string
@@ -87,21 +85,6 @@ export async function fetchWordInfo(word: string): Promise<DictionaryResult | nu
   } catch {
     return null
   }
-}
-
-/**
- * 원래 단어로 사전에 없으면, 복수형/과거형 등을 원형으로 되돌린 후보들로 다시 시도해본다.
- * 후보로 찾았을 때는 결과의 word 필드가 원형으로 바뀌어 있으니, 그걸 저장용 단어로 쓰면 된다.
- */
-export async function fetchWordInfoSmart(word: string): Promise<DictionaryResult | null> {
-  const direct = await fetchWordInfo(word)
-  if (direct) return direct
-
-  for (const candidate of lemmaCandidates(word)) {
-    const result = await fetchWordInfo(candidate)
-    if (result) return result
-  }
-  return null
 }
 
 function normalizeAudioUrl(url: string): string {
