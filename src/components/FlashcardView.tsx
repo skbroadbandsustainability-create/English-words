@@ -4,6 +4,13 @@ import { useWords } from '../store/wordStore'
 import { playPronunciation } from '../services/speech'
 import { shuffle } from '../utils/words'
 import { dateKeyOf, formatDateShort, groupWordsByDate } from '../utils/dateGroups'
+import type { WordEntry } from '../types'
+
+type Phase = 'round1' | 'round2' | 'review' | 'done'
+
+function shuffledIds(pool: WordEntry[]): string[] {
+  return shuffle(pool.map((w) => w.id))
+}
 
 export default function FlashcardView() {
   const { state, dispatch } = useWords()
@@ -18,15 +25,21 @@ export default function FlashcardView() {
     [state.words, selectedDate],
   )
 
-  const [order, setOrder] = useState<string[]>([])
-  const [index, setIndex] = useState(0)
+  // 학습 순서: 1라운드에서 전체를 한 번, 2라운드에서 전체를 한 번 더 무조건 다 보여준 다음,
+  // 그 뒤로는 "다시 볼래요"였던 단어만 알아요를 누를 때까지 계속 돌려서 보여준다.
+  const [phase, setPhase] = useState<Phase>('round1')
+  const [linearQueue, setLinearQueue] = useState<string[]>([])
+  const [linearIndex, setLinearIndex] = useState(0)
+  const [reviewQueue, setReviewQueue] = useState<string[]>([])
+  const [needsReview, setNeedsReview] = useState<Set<string>>(new Set())
   const [flipped, setFlipped] = useState(false)
 
   useEffect(() => {
-    // 익숙하지 않은(familiarity 낮은) 단어일수록 더 자주 나오게 가중치를 준다.
-    const weighted = pool.flatMap((w) => Array(Math.max(1, 3 - Math.min(w.familiarity, 2))).fill(w.id))
-    setOrder(shuffle(weighted.length > 0 ? weighted : pool.map((w) => w.id)))
-    setIndex(0)
+    setPhase('round1')
+    setLinearQueue(shuffledIds(pool))
+    setLinearIndex(0)
+    setReviewQueue([])
+    setNeedsReview(new Set(pool.map((w) => w.id)))
     setFlipped(false)
   }, [pool.length, selectedDate])
 
@@ -34,11 +47,9 @@ export default function FlashcardView() {
     if (state.words.length > 0) dispatch({ type: 'MARK_STUDIED_TODAY' })
   }, [dispatch, state.words.length])
 
-  const currentWord = useMemo(() => {
-    if (order.length === 0) return undefined
-    const id = order[index % order.length]
-    return state.words.find((w) => w.id === id)
-  }, [order, index, state.words])
+  const currentId =
+    phase === 'round1' || phase === 'round2' ? linearQueue[linearIndex] : phase === 'review' ? reviewQueue[0] : undefined
+  const currentWord = useMemo(() => pool.find((w) => w.id === currentId), [pool, currentId])
 
   if (state.words.length === 0) {
     return (
@@ -50,19 +61,53 @@ export default function FlashcardView() {
     )
   }
 
-  function next() {
+  function restart() {
+    setPhase('round1')
+    setLinearQueue(shuffledIds(pool))
+    setLinearIndex(0)
+    setReviewQueue([])
+    setNeedsReview(new Set(pool.map((w) => w.id)))
     setFlipped(false)
-    setIndex((i) => i + 1)
   }
 
-  function markKnow() {
-    dispatch({ type: 'BUMP_FAMILIARITY', id: currentWord!.id, delta: 1 })
-    next()
-  }
+  function answer(know: boolean) {
+    if (!currentWord) return
+    dispatch({ type: 'BUMP_FAMILIARITY', id: currentWord.id, delta: know ? 1 : -1 })
+    setFlipped(false)
 
-  function markReview() {
-    dispatch({ type: 'BUMP_FAMILIARITY', id: currentWord!.id, delta: -1 })
-    next()
+    if (phase === 'round1' || phase === 'round2') {
+      const updatedNeedsReview = new Set(needsReview)
+      if (know) updatedNeedsReview.delete(currentWord.id)
+      else updatedNeedsReview.add(currentWord.id)
+      setNeedsReview(updatedNeedsReview)
+
+      const nextIndex = linearIndex + 1
+      if (nextIndex < linearQueue.length) {
+        setLinearIndex(nextIndex)
+        return
+      }
+      if (phase === 'round1') {
+        setPhase('round2')
+        setLinearQueue(shuffledIds(pool))
+        setLinearIndex(0)
+        return
+      }
+      // 2라운드까지 다 봤으니, 아직 "다시 볼래요"였던 단어만 모아서 복습 단계로 넘어간다.
+      const reviewIds = shuffle([...updatedNeedsReview])
+      if (reviewIds.length === 0) {
+        setPhase('done')
+      } else {
+        setPhase('review')
+        setReviewQueue(reviewIds)
+      }
+      return
+    }
+
+    // 복습 단계: "알아요"면 목록에서 빼고, "다시 볼래요"면 맨 뒤로 보내서 계속 돈다.
+    const rest = reviewQueue.slice(1)
+    const updated = know ? rest : [...rest, currentWord.id]
+    setReviewQueue(updated)
+    if (updated.length === 0) setPhase('done')
   }
 
   return (
@@ -85,12 +130,22 @@ export default function FlashcardView() {
         </div>
       )}
 
-      {pool.length === 0 || !currentWord ? (
+      {pool.length === 0 ? (
         <p className="py-16 text-slate-400">이 날짜에는 카드가 없어요.</p>
-      ) : (
+      ) : phase === 'done' ? (
+        <div className="flex flex-col items-center gap-3 rounded-3xl bg-emerald-50 py-16 text-center">
+          <span className="text-5xl">🎉</span>
+          <p className="font-display text-xl text-emerald-600">이 단어들은 다 익혔어요!</p>
+          <button onClick={restart} className="mt-2 rounded-full bg-emerald-500 px-6 py-2 font-bold text-white">
+            다시 학습하기
+          </button>
+        </div>
+      ) : !currentWord ? null : (
         <>
           <p className="text-sm font-bold text-slate-400">
-            {(index % order.length) + 1} / {order.length}
+            {phase === 'round1' && `1번째 보기 · ${linearIndex + 1}/${linearQueue.length}`}
+            {phase === 'round2' && `2번째 보기 · ${linearIndex + 1}/${linearQueue.length}`}
+            {phase === 'review' && `복습 중 · 남은 단어 ${reviewQueue.length}개`}
           </p>
 
           <WordCard word={currentWord} flipped={flipped} onFlip={() => setFlipped((f) => !f)} />
@@ -104,13 +159,13 @@ export default function FlashcardView() {
 
           <div className="flex w-full max-w-sm gap-3">
             <button
-              onClick={markReview}
+              onClick={() => answer(false)}
               className="no-select flex-1 rounded-2xl border-2 border-amber-300 bg-amber-50 py-4 text-lg font-bold text-amber-600 transition-transform active:scale-95"
             >
               🔁 다시 볼래요
             </button>
             <button
-              onClick={markKnow}
+              onClick={() => answer(true)}
               className="no-select flex-1 rounded-2xl border-2 border-emerald-400 bg-emerald-400 py-4 text-lg font-bold text-white transition-transform active:scale-95"
             >
               ✅ 알아요
