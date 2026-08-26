@@ -1,30 +1,30 @@
 import { useMemo, useState } from 'react'
 import confetti from 'canvas-confetti'
 import QuizQuestion from './QuizQuestion'
-import { useLatestBatch, useWords } from '../store/wordStore'
-import { buildQuizQuestions } from '../utils/words'
+import DateChip from './DateChip'
+import { useWords } from '../store/wordStore'
+import { buildQuizQuestions, generateId } from '../utils/words'
 import type { QuizQuestion as QuizQuestionType } from '../utils/words'
-import { generateId } from '../utils/words'
+import { dateKeyOf, formatDateShort, groupWordsByDate } from '../utils/dateGroups'
 import type { QuizResult } from '../types'
 
-type Mode = 'new' | 'all'
 type Stage = 'setup' | 'in-progress' | 'result'
 
 export default function TestView() {
   const { state, dispatch } = useWords()
-  const latestBatch = useLatestBatch()
-  const [mode, setMode] = useState<Mode>('new')
+  const dateGroups = useMemo(() => groupWordsByDate(state.words), [state.words])
+
+  const [selectedDate, setSelectedDate] = useState<string>(dateGroups[0]?.date ?? 'all')
   const [stage, setStage] = useState<Stage>('setup')
   const [questions, setQuestions] = useState<QuizQuestionType[]>([])
   const [qIndex, setQIndex] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
   const [missed, setMissed] = useState<string[]>([])
 
-  const newWords = useMemo(
-    () => (latestBatch ? state.words.filter((w) => w.batchId === latestBatch.id) : []),
-    [latestBatch, state.words],
+  const pool = useMemo(
+    () => (selectedDate === 'all' ? state.words : state.words.filter((w) => dateKeyOf(w) === selectedDate)),
+    [state.words, selectedDate],
   )
-  const pool = mode === 'new' ? newWords : state.words
 
   function start() {
     const count = Math.min(10, pool.length)
@@ -51,8 +51,7 @@ export default function TestView() {
     const finalCorrect = correct ? correctCount + 1 : correctCount
     const result: QuizResult = {
       id: generateId(),
-      mode,
-      batchId: mode === 'new' ? latestBatch?.id : undefined,
+      scope: selectedDate,
       total: questions.length,
       correct: finalCorrect,
       takenAt: new Date().toISOString(),
@@ -69,20 +68,30 @@ export default function TestView() {
   if (stage === 'setup') {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
-        <ModeToggle mode={mode} onChange={setMode} />
+        <div className="flex w-full gap-2 overflow-x-auto pb-1">
+          <DateChip
+            label={`전체 (${state.words.length})`}
+            active={selectedDate === 'all'}
+            onClick={() => setSelectedDate('all')}
+          />
+          {dateGroups.map((g) => (
+            <DateChip
+              key={g.date}
+              label={`${formatDateShort(g.date)} (${g.words.length})`}
+              active={selectedDate === g.date}
+              onClick={() => setSelectedDate(g.date)}
+            />
+          ))}
+        </div>
 
         <div className="rounded-3xl bg-white p-6 text-center shadow-sm">
           <p className="font-display text-xl text-slate-700">
-            {mode === 'new' ? '새로 등록한 단어' : '지금까지 모은 모든 단어'}
+            {selectedDate === 'all' ? '지금까지 모은 모든 단어' : `${formatDateShort(selectedDate)}에 등록한 단어`}
           </p>
           <p className="mt-1 text-slate-400">{pool.length}개로 테스트할 수 있어요</p>
 
           {pool.length < 2 ? (
-            <p className="mt-4 text-sm text-amber-500">
-              {mode === 'new'
-                ? '아직 새로 등록한 단어가 없어요. 먼저 단어를 추가해주세요!'
-                : '테스트하려면 단어가 2개 이상 필요해요.'}
-            </p>
+            <p className="mt-4 text-sm text-amber-500">테스트하려면 단어가 2개 이상 필요해요.</p>
           ) : (
             <button
               onClick={start}
@@ -137,29 +146,6 @@ export default function TestView() {
         className="rounded-full bg-sky-500 px-8 py-3 text-lg font-bold text-white active:scale-95"
       >
         다시 하기
-      </button>
-    </div>
-  )
-}
-
-function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  return (
-    <div className="flex gap-2 rounded-2xl bg-white p-1.5 shadow-sm">
-      <button
-        onClick={() => onChange('new')}
-        className={`flex-1 rounded-xl py-2.5 text-base font-bold transition-colors ${
-          mode === 'new' ? 'bg-sky-500 text-white' : 'text-slate-400'
-        }`}
-      >
-        🆕 새 단어 테스트
-      </button>
-      <button
-        onClick={() => onChange('all')}
-        className={`flex-1 rounded-xl py-2.5 text-base font-bold transition-colors ${
-          mode === 'all' ? 'bg-sky-500 text-white' : 'text-slate-400'
-        }`}
-      >
-        📚 전체 테스트
       </button>
     </div>
   )

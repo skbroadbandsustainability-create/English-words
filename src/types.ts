@@ -23,8 +23,7 @@ export interface Batch {
 
 export interface QuizResult {
   id: string
-  mode: 'new' | 'all'
-  batchId?: string
+  scope: string // 'all' 또는 시험 본 날짜(YYYY-MM-DD)
   total: number
   correct: number
   takenAt: string
