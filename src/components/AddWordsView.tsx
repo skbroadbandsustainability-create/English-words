@@ -3,6 +3,7 @@ import { useWords } from '../store/wordStore'
 import { extractWordsFromPhoto, lookupWordAi } from '../services/aiWords'
 import type { AiWordResult } from '../services/aiWords'
 import { fetchWordInfo } from '../services/dictionary'
+import { naverDictUrl } from '../utils/naverDict'
 import { generateId } from '../utils/words'
 import type { Batch, WordEntry } from '../types'
 
@@ -359,6 +360,14 @@ function CandidateRow({
                 {candidate.partOfSpeech}
               </span>
             )}
+            <a
+              href={naverDictUrl(candidate.word)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-emerald-600 underline"
+            >
+              네이버 사전 🔗
+            </a>
           </div>
           {candidate.definitionEn && <p className="mt-1 text-sm text-slate-400">{candidate.definitionEn}</p>}
           <input

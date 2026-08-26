@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useWords } from '../store/wordStore'
 import { playPronunciation } from '../services/speech'
+import { naverDictUrl } from '../utils/naverDict'
 import type { WordEntry } from '../types'
 
 export default function WordBookView() {
@@ -105,6 +106,14 @@ function WordRow({
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="font-display text-lg text-slate-800">{word.word}</span>
             {word.phonetic && <span className="text-xs text-slate-400">{word.phonetic}</span>}
+            <a
+              href={naverDictUrl(word.word)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-emerald-600 underline"
+            >
+              네이버 사전 🔗
+            </a>
           </div>
           {editing ? (
             <div className="mt-1 flex gap-2">

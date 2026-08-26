@@ -1,4 +1,5 @@
 import type { WordEntry } from '../types'
+import { naverDictUrl } from '../utils/naverDict'
 
 interface Props {
   word: WordEntry
@@ -8,9 +9,13 @@ interface Props {
 
 export default function WordCard({ word, flipped, onFlip }: Props) {
   return (
-    <button
+    // 뒷면에 실제 링크(<a>)가 들어가야 해서, <button> 대신 role="button"으로 접근성을 유지한다.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onFlip}
-      className={`flip-card no-select h-72 w-full max-w-sm ${flipped ? 'flipped' : ''}`}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onFlip()}
+      className={`flip-card no-select h-72 w-full max-w-sm cursor-pointer ${flipped ? 'flipped' : ''}`}
       aria-label="카드를 눌러 뜻 보기"
     >
       <div className="flip-card-inner relative h-full w-full">
@@ -34,8 +39,17 @@ export default function WordCard({ word, flipped, onFlip }: Props) {
           {word.antonyms.length > 0 && (
             <p className="text-center text-sm text-slate-500">반대말: {word.antonyms.join(', ')}</p>
           )}
+          <a
+            href={naverDictUrl(word.word)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 text-sm font-bold text-emerald-700 underline"
+          >
+            네이버 사전에서 보기 🔗
+          </a>
         </div>
       </div>
-    </button>
+    </div>
   )
 }
