@@ -67,7 +67,7 @@ export default function FlashcardView() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-8 sm:px-6">
-      {dateGroups.length > 1 && (
+      {dateGroups.length > 0 && (
         <div className="flex w-full gap-2 overflow-x-auto pb-1">
           <DateChip
             label={`전체 (${state.words.length})`}
