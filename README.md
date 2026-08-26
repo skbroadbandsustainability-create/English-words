@@ -12,22 +12,25 @@
 - **단어장**: 등록한 모든 단어를 날짜별로 모아보고, 수정·삭제할 수 있어요.
 - **기록**: 연속 학습일, 모은 단어 수, 테스트 점수 변화, 자주 틀리는 단어를 확인해요.
 
-단어 데이터는 기기(브라우저)에 저장돼요. 발음 오디오는 무료 공개 사전 API(dictionaryapi.dev)에서 있으면 가져오고, 없으면 브라우저 음성 합성(TTS)으로 읽어줘요.
+단어 데이터는 클라우드(Redis)에 저장돼서 **같은 주소를 여러 기기(부모님 폰, 아이 태블릿 등)에서 열어도 같은 단어장을 봐요**. 기기별로는 오프라인 캐시용으로 브라우저에도 저장돼요. 발음 오디오는 무료 공개 사전 API(dictionaryapi.dev)에서 있으면 가져오고, 없으면 브라우저 음성 합성(TTS)으로 읽어줘요.
 
 ## 아키텍처
 
 - **프론트엔드**: React + TypeScript + Vite + Tailwind CSS (정적 사이트)
-- **백엔드**: `/api/extract-words`, `/api/word-info` — Vercel 서버리스 함수. **Google Gemini API**를 호출해서 사진 속 단어 추출과 단어 뜻 조회를 처리해요.
-- Gemini API는 [Google AI Studio](https://aistudio.google.com/app/apikey)에서 **신용카드 등록 없이 무료로** API 키를 발급받을 수 있어요(무료 등급 사용량 제한 안에서). API 키(`GEMINI_API_KEY`)는 서버리스 함수 안에서만 쓰이고 브라우저에는 절대 노출되지 않아요.
+- **백엔드**: Vercel 서버리스 함수
+  - `/api/extract-words`, `/api/word-info`, `/api/example-sentences` — **Google Gemini API**로 사진 속 단어 추출, 단어 뜻 조회, 빈칸 채우기용 예문 생성을 처리해요.
+  - `/api/sync` — 단어장 전체를 **Upstash Redis**에 저장/조회해서 기기 간 동기화를 처리해요. 변경할 때마다 자동으로 올리고, 다른 탭/기기에서 바뀐 게 있으면 주기적으로 받아와요.
+- Gemini API는 [Google AI Studio](https://aistudio.google.com/app/apikey)에서, Redis는 [upstash.com](https://upstash.com)에서 **둘 다 신용카드 등록 없이 무료로** 만들 수 있어요. 키들은 서버리스 함수 안에서만 쓰이고 브라우저에는 절대 노출되지 않아요.
 
-> ⚠️ **GitHub Pages는 정적 파일만 서빙**하기 때문에 `/api/*` 서버리스 함수가 동작하지 않아요. 사진/단어 추가 기능을 쓰려면 아래처럼 **Vercel로 배포**해야 해요.
+> ⚠️ **GitHub Pages는 정적 파일만 서빙**하기 때문에 `/api/*` 서버리스 함수가 동작하지 않아요. 사진/단어 추가, 기기 간 동기화 기능을 쓰려면 아래처럼 **Vercel로 배포**해야 해요.
 
 ## 배포 (Vercel)
 
 1. https://vercel.com 에서 이 GitHub 저장소를 Import 해요. (Framework Preset은 자동으로 Vite로 잡혀요)
-2. https://aistudio.google.com/app/apikey 에서 **Create API key**로 무료 키를 발급받아요.
-3. Vercel 프로젝트 Settings → Environment Variables에서 `GEMINI_API_KEY`를 추가해요 (Production/Preview/Development 모두 체크).
-4. Deploy를 누르면 끝! 이후 `main` 브랜치에 push할 때마다 자동으로 다시 배포돼요.
+2. https://aistudio.google.com/app/apikey 에서 **Create API key**로 Gemini 무료 키를 발급받아요.
+3. https://upstash.com 에서 무료 Redis 데이터베이스를 만들고, "REST API" 섹션에서 URL/TOKEN을 확인해요.
+4. Vercel 프로젝트 Settings → Environment Variables에서 `GEMINI_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`을 추가해요 (Production/Preview/Development 모두 체크).
+5. Deploy를 누르면 끝! 이후 `main` 브랜치에 push할 때마다 자동으로 다시 배포돼요.
 
 ## 개발
 
@@ -38,4 +41,4 @@ npm run build    # 프로덕션 빌드
 npm run lint     # 린트 검사
 ```
 
-`/api` 서버리스 함수까지 로컬에서 테스트하려면 [Vercel CLI](https://vercel.com/docs/cli)로 `vercel dev`를 사용하고, 프로젝트 루트에 `.env.local`을 만들어 `GEMINI_API_KEY`를 넣어주세요(`.env.example` 참고).
+`/api` 서버리스 함수까지 로컬에서 테스트하려면 [Vercel CLI](https://vercel.com/docs/cli)로 `vercel dev`를 사용하고, 프로젝트 루트에 `.env.local`을 만들어 `.env.example`에 있는 값들을 넣어주세요.

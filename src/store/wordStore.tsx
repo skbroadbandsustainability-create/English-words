@@ -1,7 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { DEFAULT_STATE, STORAGE_KEY } from '../types'
 import type { AppState, Batch, QuizResult, WordEntry } from '../types'
+import { fetchCloudState, pushCloudState } from '../services/sync'
+
+const SYNC_PUSH_DEBOUNCE_MS = 1500
+const SYNC_POLL_INTERVAL_MS = 20000
 
 type Action =
   | { type: 'ADD_BATCH'; batch: Batch; words: WordEntry[] }
@@ -114,6 +118,42 @@ export function WordProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
+
+  // 클라우드 동기화: 마지막으로 이 기기가 알고 있는(올렸거나 받아온) 버전의 시각.
+  // 이거보다 새 버전이 클라우드에 있을 때만 받아와서 덮어쓴다.
+  const lastKnownUpdatedAt = useRef('')
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const updatedAt = new Date().toISOString()
+      lastKnownUpdatedAt.current = updatedAt
+      void pushCloudState(state, updatedAt)
+    }, SYNC_PUSH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [state])
+
+  const pullFromCloud = useCallback(async () => {
+    const cloud = await fetchCloudState()
+    if (cloud && cloud.updatedAt > lastKnownUpdatedAt.current) {
+      lastKnownUpdatedAt.current = cloud.updatedAt
+      dispatch({ type: 'IMPORT_STATE', state: cloud.state })
+    }
+  }, [])
+
+  useEffect(() => {
+    void pullFromCloud()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void pullFromCloud()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', pullFromCloud)
+    const interval = window.setInterval(pullFromCloud, SYNC_POLL_INTERVAL_MS)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', pullFromCloud)
+      window.clearInterval(interval)
+    }
+  }, [pullFromCloud])
 
   const value = useMemo(() => ({ state, dispatch }), [state])
 
