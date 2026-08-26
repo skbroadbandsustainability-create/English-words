@@ -4,7 +4,7 @@ import QuizQuestion from './QuizQuestion'
 import DateChip from './DateChip'
 import { useWords } from '../store/wordStore'
 import { buildQuizQuestions, generateId } from '../utils/words'
-import type { QuizQuestion as QuizQuestionType } from '../utils/words'
+import type { QuizDirection, QuizQuestion as QuizQuestionType } from '../utils/words'
 import { dateKeyOf, formatDateShort, groupWordsByDate } from '../utils/dateGroups'
 import type { QuizResult } from '../types'
 
@@ -15,6 +15,7 @@ export default function TestView() {
   const dateGroups = useMemo(() => groupWordsByDate(state.words), [state.words])
 
   const [selectedDate, setSelectedDate] = useState<string>(dateGroups[0]?.date ?? 'all')
+  const [direction, setDirection] = useState<QuizDirection>('wordToMeaning')
   const [stage, setStage] = useState<Stage>('setup')
   const [questions, setQuestions] = useState<QuizQuestionType[]>([])
   const [qIndex, setQIndex] = useState(0)
@@ -30,7 +31,7 @@ export default function TestView() {
     // 특정 날짜를 골랐으면 그날 등록한 단어 전체가 다 나오고,
     // '전체'를 섞어서 볼 때는 너무 길어지지 않게 최대 20문제로 제한한다.
     const count = selectedDate === 'all' ? Math.min(20, pool.length) : pool.length
-    setQuestions(buildQuizQuestions(pool, count))
+    setQuestions(buildQuizQuestions(pool, count, direction))
     setQIndex(0)
     setCorrectCount(0)
     setMissed([])
@@ -84,6 +85,25 @@ export default function TestView() {
               onClick={() => setSelectedDate(g.date)}
             />
           ))}
+        </div>
+
+        <div className="flex gap-2 rounded-2xl bg-white p-1.5 shadow-sm">
+          <button
+            onClick={() => setDirection('wordToMeaning')}
+            className={`flex-1 rounded-xl py-2.5 text-base font-bold transition-colors ${
+              direction === 'wordToMeaning' ? 'bg-sky-500 text-white' : 'text-slate-400'
+            }`}
+          >
+            단어 → 뜻
+          </button>
+          <button
+            onClick={() => setDirection('meaningToWord')}
+            className={`flex-1 rounded-xl py-2.5 text-base font-bold transition-colors ${
+              direction === 'meaningToWord' ? 'bg-sky-500 text-white' : 'text-slate-400'
+            }`}
+          >
+            뜻 → 단어
+          </button>
         </div>
 
         <div className="rounded-3xl bg-white p-6 text-center shadow-sm">

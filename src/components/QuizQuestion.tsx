@@ -30,14 +30,21 @@ export default function QuizQuestion({ question, index, total, onAnswered }: Pro
         {index + 1} / {total}
       </p>
 
-      <div className="flex flex-col items-center gap-2 rounded-3xl bg-white p-6 shadow-sm">
-        <p className="font-display text-3xl text-slate-800 sm:text-4xl">{question.word.word}</p>
-        <button
-          onClick={() => playPronunciation(question.word.word, question.word.audioUrl)}
-          className="no-select rounded-full bg-sky-100 px-4 py-2 text-sm font-bold text-sky-600"
-        >
-          🔊 발음 듣기
-        </button>
+      <div className="flex flex-col items-center gap-2 rounded-3xl bg-white p-6 text-center shadow-sm">
+        {question.direction === 'wordToMeaning' ? (
+          <>
+            <p className="font-display text-3xl text-slate-800 sm:text-4xl">{question.prompt}</p>
+            <button
+              onClick={() => playPronunciation(question.word.word, question.word.audioUrl)}
+              className="no-select rounded-full bg-sky-100 px-4 py-2 text-sm font-bold text-sky-600"
+            >
+              🔊 발음 듣기
+            </button>
+          </>
+        ) : (
+          // 뜻→단어 문제에서는 발음을 들려주면 답이 그대로 드러나니 발음 버튼은 숨긴다.
+          <p className="text-xl font-bold text-slate-800 sm:text-2xl">{question.prompt}</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
