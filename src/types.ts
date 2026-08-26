@@ -21,9 +21,12 @@ export interface Batch {
   wordIds: string[]
 }
 
+export type QuizDirection = 'wordToMeaning' | 'meaningToWord'
+
 export interface QuizResult {
   id: string
   scope: string // 'all' 또는 시험 본 날짜(YYYY-MM-DD)
+  direction: QuizDirection
   total: number
   correct: number
   takenAt: string

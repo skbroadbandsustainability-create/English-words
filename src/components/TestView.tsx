@@ -55,6 +55,7 @@ export default function TestView() {
     const result: QuizResult = {
       id: generateId(),
       scope: selectedDate,
+      direction,
       total: questions.length,
       correct: finalCorrect,
       takenAt: new Date().toISOString(),
