@@ -12,6 +12,7 @@ export interface WordEntry {
   addedAt: string // ISO timestamp
   source: 'photo' | 'manual'
   familiarity: number // 카드에서 "알아요"를 누른 횟수
+  exampleSentence?: string // 빈칸 채우기 테스트용 예문(AI가 만들어줌, 없으면 미생성)
 }
 
 export interface Batch {
@@ -21,7 +22,7 @@ export interface Batch {
   wordIds: string[]
 }
 
-export type QuizDirection = 'wordToMeaning' | 'meaningToWord'
+export type QuizDirection = 'wordToMeaning' | 'meaningToWord' | 'fillBlank'
 
 export interface QuizResult {
   id: string

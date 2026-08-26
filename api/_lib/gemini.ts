@@ -62,3 +62,31 @@ export const WORDS_LIST_SCHEMA: Schema = {
 }
 
 export const SINGLE_WORD_SCHEMA: Schema = WORD_ITEM_SCHEMA
+
+export interface AiSentence {
+  word: string
+  sentence: string
+}
+
+export const SENTENCES_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    sentences: {
+      type: Type.ARRAY,
+      maxItems: '25',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          word: { type: Type.STRING, description: '입력받은 단어 철자 그대로' },
+          sentence: {
+            type: Type.STRING,
+            description:
+              '그 단어가 자연스럽게 들어간, 초등학생이 읽기 쉬운 영어 예문 한 문장. 문장 안에 그 단어를 반드시 입력받은 철자 그대로(변형 없이) 포함시켜야 함.',
+          },
+        },
+        required: ['word', 'sentence'],
+      },
+    },
+  },
+  required: ['sentences'],
+}

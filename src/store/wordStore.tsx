@@ -36,7 +36,8 @@ function normalizeQuizResult(raw: unknown): QuizResult | null {
   return {
     id: r.id,
     scope: typeof r.scope === 'string' ? r.scope : 'all',
-    direction: r.direction === 'meaningToWord' ? 'meaningToWord' : 'wordToMeaning',
+    direction:
+      r.direction === 'meaningToWord' || r.direction === 'fillBlank' ? r.direction : 'wordToMeaning',
     total: r.total,
     correct: r.correct,
     takenAt: r.takenAt,

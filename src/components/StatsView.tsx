@@ -14,7 +14,9 @@ function scopeLabel(scope: string): string {
 }
 
 function directionLabel(direction: QuizDirection): string {
-  return direction === 'meaningToWord' ? '뜻 → 단어' : '단어 → 뜻'
+  if (direction === 'meaningToWord') return '뜻 → 단어'
+  if (direction === 'fillBlank') return '빈칸 채우기'
+  return '단어 → 뜻'
 }
 
 export default function StatsView() {

@@ -3,12 +3,19 @@ import confetti from 'canvas-confetti'
 import QuizQuestion from './QuizQuestion'
 import DateChip from './DateChip'
 import { useWords } from '../store/wordStore'
-import { buildQuizQuestions, generateId } from '../utils/words'
+import { buildQuizQuestions, generateId, hasUsableExampleSentence } from '../utils/words'
 import type { QuizDirection, QuizQuestion as QuizQuestionType } from '../utils/words'
 import { dateKeyOf, formatDateShort, groupWordsByDate } from '../utils/dateGroups'
-import type { QuizResult } from '../types'
+import { fetchExampleSentences } from '../services/aiWords'
+import type { QuizResult, WordEntry } from '../types'
 
-type Stage = 'setup' | 'in-progress' | 'result'
+type Stage = 'setup' | 'loading' | 'in-progress' | 'result'
+
+const DIRECTION_OPTIONS: { key: QuizDirection; label: string }[] = [
+  { key: 'wordToMeaning', label: '단어 → 뜻' },
+  { key: 'meaningToWord', label: '뜻 → 단어' },
+  { key: 'fillBlank', label: '빈칸 채우기' },
+]
 
 export default function TestView() {
   const { state, dispatch } = useWords()
@@ -17,6 +24,7 @@ export default function TestView() {
   const [selectedDate, setSelectedDate] = useState<string>(dateGroups[0]?.date ?? 'all')
   const [direction, setDirection] = useState<QuizDirection>('wordToMeaning')
   const [stage, setStage] = useState<Stage>('setup')
+  const [error, setError] = useState<string | undefined>()
   const [questions, setQuestions] = useState<QuizQuestionType[]>([])
   const [qIndex, setQIndex] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
@@ -27,15 +35,51 @@ export default function TestView() {
     [state.words, selectedDate],
   )
 
-  function start() {
-    // 특정 날짜를 골랐으면 그날 등록한 단어 전체가 다 나오고,
-    // '전체'를 섞어서 볼 때는 너무 길어지지 않게 최대 20문제로 제한한다.
-    const count = selectedDate === 'all' ? Math.min(20, pool.length) : pool.length
-    setQuestions(buildQuizQuestions(pool, count, direction))
+  function launch(withPool: WordEntry[]) {
+    const count = selectedDate === 'all' ? Math.min(20, withPool.length) : withPool.length
+    setQuestions(buildQuizQuestions(withPool, count, direction))
     setQIndex(0)
     setCorrectCount(0)
     setMissed([])
     setStage('in-progress')
+  }
+
+  async function start() {
+    setError(undefined)
+
+    if (direction !== 'fillBlank') {
+      launch(pool)
+      return
+    }
+
+    // 빈칸 채우기는 단어마다 예문이 있어야 해서, 없는 단어는 AI에게 새로 만들어달라고 요청한다.
+    setStage('loading')
+    try {
+      const missing = pool.filter((w) => !hasUsableExampleSentence(w))
+      const sentenceMap = missing.length > 0 ? await fetchExampleSentences(missing.map((w) => w.word)) : {}
+
+      const merged = pool.map((w) => {
+        if (hasUsableExampleSentence(w)) return w
+        const sentence = sentenceMap[w.word]
+        return sentence ? { ...w, exampleSentence: sentence } : w
+      })
+      merged.forEach((w, i) => {
+        if (w.exampleSentence && w.exampleSentence !== pool[i].exampleSentence) {
+          dispatch({ type: 'UPDATE_WORD', word: w })
+        }
+      })
+
+      const usable = merged.filter(hasUsableExampleSentence)
+      if (usable.length < 2) {
+        setError('예문을 만들 수 있는 단어가 부족해요. 다른 유형으로 시도해보세요.')
+        setStage('setup')
+        return
+      }
+      launch(usable)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '예문을 만드는 중 문제가 생겼어요.')
+      setStage('setup')
+    }
   }
 
   function handleAnswered(correct: boolean) {
@@ -89,22 +133,17 @@ export default function TestView() {
         </div>
 
         <div className="flex gap-2 rounded-2xl bg-white p-1.5 shadow-sm">
-          <button
-            onClick={() => setDirection('wordToMeaning')}
-            className={`flex-1 rounded-xl py-2.5 text-base font-bold transition-colors ${
-              direction === 'wordToMeaning' ? 'bg-sky-500 text-white' : 'text-slate-400'
-            }`}
-          >
-            단어 → 뜻
-          </button>
-          <button
-            onClick={() => setDirection('meaningToWord')}
-            className={`flex-1 rounded-xl py-2.5 text-base font-bold transition-colors ${
-              direction === 'meaningToWord' ? 'bg-sky-500 text-white' : 'text-slate-400'
-            }`}
-          >
-            뜻 → 단어
-          </button>
+          {DIRECTION_OPTIONS.map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setDirection(opt.key)}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition-colors sm:text-base ${
+                direction === opt.key ? 'bg-sky-500 text-white' : 'text-slate-400'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
 
         <div className="rounded-3xl bg-white p-6 text-center shadow-sm">
@@ -116,18 +155,34 @@ export default function TestView() {
               ? `${Math.min(20, pool.length)}문제로 테스트해요`
               : `${pool.length}개 전부 테스트해요`}
           </p>
+          {direction === 'fillBlank' && (
+            <p className="mt-1 text-xs text-slate-400">문장에 예문이 없는 단어는 AI가 시작할 때 새로 만들어요</p>
+          )}
 
           {pool.length < 2 ? (
             <p className="mt-4 text-sm text-amber-500">테스트하려면 단어가 2개 이상 필요해요.</p>
           ) : (
             <button
-              onClick={start}
+              onClick={() => void start()}
               className="mt-4 rounded-full bg-sky-500 px-8 py-3 text-lg font-bold text-white active:scale-95"
             >
               테스트 시작
             </button>
           )}
         </div>
+
+        {error && <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-500">{error}</p>}
+      </div>
+    )
+  }
+
+  if (stage === 'loading') {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 px-4 py-16 text-center">
+        <div className="h-3 w-40 overflow-hidden rounded-full bg-sky-100">
+          <div className="h-full w-2/5 animate-pulse rounded-full bg-sky-400" />
+        </div>
+        <p className="font-bold text-slate-500">AI가 빈칸 채우기 예문을 만들고 있어요...</p>
       </div>
     )
   }

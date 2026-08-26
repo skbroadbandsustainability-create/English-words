@@ -93,3 +93,22 @@ export async function lookupWordAi(word: string): Promise<AiWordResult | null> {
   const data = await res.json()
   return (data.word ?? null) as AiWordResult | null
 }
+
+/** 빈칸 채우기 테스트용으로, 단어들이 자연스럽게 들어간 예문을 AI(Gemini)에게 받아온다. */
+export async function fetchExampleSentences(words: string[]): Promise<Record<string, string>> {
+  if (words.length === 0) return {}
+  const res = await fetchWithTimeout(
+    '/api/example-sentences',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words }),
+    },
+    30000,
+  )
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+  }
+  const data = await res.json()
+  return (data.sentences ?? {}) as Record<string, string>
+}

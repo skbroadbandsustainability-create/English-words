@@ -31,7 +31,7 @@ export default function QuizQuestion({ question, index, total, onAnswered }: Pro
       </p>
 
       <div className="flex flex-col items-center gap-2 rounded-3xl bg-white p-6 text-center shadow-sm">
-        {question.direction === 'wordToMeaning' ? (
+        {question.direction === 'wordToMeaning' && (
           <>
             <p className="font-display text-3xl text-slate-800 sm:text-4xl">{question.prompt}</p>
             <button
@@ -41,9 +41,14 @@ export default function QuizQuestion({ question, index, total, onAnswered }: Pro
               🔊 발음 듣기
             </button>
           </>
-        ) : (
+        )}
+        {question.direction === 'meaningToWord' && (
           // 뜻→단어 문제에서는 발음을 들려주면 답이 그대로 드러나니 발음 버튼은 숨긴다.
           <p className="text-xl font-bold text-slate-800 sm:text-2xl">{question.prompt}</p>
+        )}
+        {question.direction === 'fillBlank' && (
+          // 빈칸 채우기도 발음을 들려주면 답이 드러나니 발음 버튼은 숨긴다.
+          <p className="w-full text-left text-lg leading-relaxed text-slate-800 sm:text-xl">{question.prompt}</p>
         )}
       </div>
 
