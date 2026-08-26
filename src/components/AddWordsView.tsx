@@ -167,12 +167,11 @@ function PhotoAdd() {
         <label className="flex cursor-pointer flex-col items-center gap-3 rounded-3xl border-4 border-dashed border-sky-200 bg-white py-12 text-center transition-colors active:border-sky-400">
           <span className="text-5xl">📷</span>
           <span className="font-display text-xl text-sky-600">책 사진 올리기</span>
-          <span className="text-sm text-slate-400">영어 단어가 보이는 페이지를 찍어주세요</span>
+          <span className="text-sm text-slate-400">카메라로 찍거나, 사진첩에서 골라주세요</span>
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0]
