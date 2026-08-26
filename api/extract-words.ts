@@ -71,6 +71,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     res.status(200).json({ words: result?.words ?? [] })
   } catch (err) {
     console.error('extract-words failed', err)
-    res.status(500).json({ error: '사진을 분석하는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' })
+    const detail = err instanceof Error ? err.message : String(err)
+    res.status(500).json({ error: '사진을 분석하는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.', detail })
   }
 }

@@ -44,6 +44,17 @@ function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
+interface ApiErrorBody {
+  error?: string
+  detail?: string
+}
+
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as ApiErrorBody
+  const base = body.error ?? fallback
+  return body.detail ? `${base} (${body.detail})` : base
+}
+
 /** 책 사진을 AI(Claude)에게 보내 사진 속 영어 단어들을 뜻과 함께 정리해서 받아온다. */
 export async function extractWordsFromPhoto(file: File): Promise<AiWordResult[]> {
   const { base64, mediaType } = await fileToResizedBase64(file)
@@ -53,8 +64,7 @@ export async function extractWordsFromPhoto(file: File): Promise<AiWordResult[]>
     body: JSON.stringify({ imageBase64: base64, mediaType }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error ?? 'AI 서버에 연결하지 못했어요.')
+    throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
   }
   const data = await res.json()
   return (data.words ?? []) as AiWordResult[]
@@ -67,7 +77,9 @@ export async function lookupWordAi(word: string): Promise<AiWordResult | null> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ word }),
   })
-  if (!res.ok) return null
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+  }
   const data = await res.json()
   return (data.word ?? null) as AiWordResult | null
 }

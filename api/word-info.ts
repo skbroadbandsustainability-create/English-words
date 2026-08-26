@@ -48,6 +48,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     res.status(200).json({ word: result?.word ?? null })
   } catch (err) {
     console.error('word-info failed', err)
-    res.status(500).json({ error: '단어를 찾는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' })
+    const detail = err instanceof Error ? err.message : String(err)
+    res.status(500).json({ error: '단어를 찾는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.', detail })
   }
 }
