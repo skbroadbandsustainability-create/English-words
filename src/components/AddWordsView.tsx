@@ -1,55 +1,52 @@
 import { useRef, useState } from 'react'
 import { useWords } from '../store/wordStore'
-import { extractWordsFromPhoto, lookupWordAi } from '../services/aiWords'
-import type { AiWordResult } from '../services/aiWords'
-import { fetchWordInfo } from '../services/dictionary'
-import { generateId } from '../utils/words'
+import { extractTextFromImage } from '../services/ocr'
+import { fetchWordInfoSmart } from '../services/dictionary'
+import type { DictionaryResult } from '../services/dictionary'
+import { fetchKoreanGloss } from '../services/translate'
+import { extractCandidateWords, generateId } from '../utils/words'
 import type { Batch, WordEntry } from '../types'
 
 interface Candidate {
   word: string
-  partOfSpeech?: string
-  definitionEn: string
-  meaning: string // 아이에게 보여줄 뜻(한글), 편집 가능
-  synonyms: string[]
-  antonyms: string[]
-  phonetic?: string
-  audioUrl?: string
+  info: DictionaryResult | null
+  meaning: string // 아이에게 보여줄 뜻 (번역 성공 시 한글, 실패 시 영어 정의)
   included: boolean
 }
 
-const ENRICH_CONCURRENCY = 4
+type Stage = 'idle' | 'reading' | 'looking-up' | 'review' | 'saved'
 
-function toCandidate(ai: AiWordResult): Candidate {
-  return {
-    word: ai.word,
-    partOfSpeech: ai.partOfSpeech,
-    definitionEn: ai.definitionEn,
-    meaning: ai.meaningKo,
-    synonyms: ai.synonyms ?? [],
-    antonyms: ai.antonyms ?? [],
-    included: true,
-  }
-}
+const LOOKUP_CONCURRENCY = 4
 
-/** 무료 사전 API로 실제 발음(오디오)만 있으면 덤으로 붙여준다. 실패해도 무시한다. */
-async function enrichWithAudio(candidates: Candidate[]): Promise<Candidate[]> {
-  const result = [...candidates]
+async function lookupCandidates(
+  words: string[],
+  onProgress: (done: number, total: number) => void,
+): Promise<Candidate[]> {
+  const results: Candidate[] = new Array(words.length)
   let cursor = 0
+  let done = 0
 
   async function worker() {
-    while (cursor < result.length) {
+    while (cursor < words.length) {
       const i = cursor++
-      const info = await fetchWordInfo(result[i].word)
-      if (info) {
-        result[i] = { ...result[i], phonetic: info.phonetic, audioUrl: info.audioUrl }
+      const word = words[i]
+      const info = await fetchWordInfoSmart(word)
+      // 사전이 원형으로 바꿔서 찾았을 수도 있으니(cats -> cat), 실제 저장할 단어는 info.word를 우선한다.
+      const koGloss = await fetchKoreanGloss(info?.word ?? word)
+      results[i] = {
+        word: info?.word ?? word,
+        info,
+        meaning: koGloss ?? info?.definitionEn ?? '',
+        included: Boolean(info),
       }
+      done += 1
+      onProgress(done, words.length)
     }
   }
 
-  const workerCount = Math.min(ENRICH_CONCURRENCY, result.length)
+  const workerCount = Math.min(LOOKUP_CONCURRENCY, words.length)
   await Promise.all(Array.from({ length: workerCount }, worker))
-  return result
+  return results
 }
 
 export default function AddWordsView() {
@@ -81,33 +78,37 @@ export default function AddWordsView() {
   )
 }
 
-type Stage = 'idle' | 'analyzing' | 'review' | 'saved'
-
 function PhotoAdd() {
   const { dispatch } = useWords()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [stage, setStage] = useState<Stage>('idle')
   const [previewUrl, setPreviewUrl] = useState<string | undefined>()
+  const [ocrProgress, setOcrProgress] = useState(0)
+  const [lookupDone, setLookupDone] = useState({ done: 0, total: 0 })
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [error, setError] = useState<string | undefined>()
 
   async function handleFile(file: File) {
     setError(undefined)
     setPreviewUrl(URL.createObjectURL(file))
-    setStage('analyzing')
+    setStage('reading')
+    setOcrProgress(0)
 
     try {
-      const aiWords = await extractWordsFromPhoto(file)
-      if (aiWords.length === 0) {
+      const text = await extractTextFromImage(file, (p) => setOcrProgress(p))
+      const words = extractCandidateWords(text)
+      if (words.length === 0) {
         setError('사진에서 영어 단어를 찾지 못했어요. 글자가 잘 보이는 사진으로 다시 시도해보세요.')
         setStage('idle')
         return
       }
-      const enriched = await enrichWithAudio(aiWords.map(toCandidate))
-      setCandidates(enriched)
+      setStage('looking-up')
+      setLookupDone({ done: 0, total: words.length })
+      const results = await lookupCandidates(words, (done, total) => setLookupDone({ done, total }))
+      setCandidates(results)
       setStage('review')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'AI가 사진을 분석하지 못했어요. 다시 시도해주세요.')
+    } catch {
+      setError('사진을 읽는 중에 문제가 생겼어요. 다시 시도해주세요.')
       setStage('idle')
     }
   }
@@ -135,13 +136,13 @@ function PhotoAdd() {
     const words: WordEntry[] = toSave.map((c) => ({
       id: generateId(),
       word: c.word,
-      phonetic: c.phonetic,
-      audioUrl: c.audioUrl,
-      partOfSpeech: c.partOfSpeech,
-      definitionEn: c.definitionEn || c.meaning.trim(),
+      phonetic: c.info?.phonetic,
+      audioUrl: c.info?.audioUrl,
+      partOfSpeech: c.info?.partOfSpeech,
+      definitionEn: c.info?.definitionEn ?? c.meaning.trim(),
       meaningKo: c.meaning.trim() || undefined,
-      synonyms: c.synonyms,
-      antonyms: c.antonyms,
+      synonyms: c.info?.synonyms ?? [],
+      antonyms: c.info?.antonyms ?? [],
       batchId: '',
       addedAt: now.toISOString(),
       source: 'photo',
@@ -185,7 +186,16 @@ function PhotoAdd() {
         <img src={previewUrl} alt="올린 사진" className="max-h-48 w-full rounded-2xl object-cover shadow-sm" />
       )}
 
-      {stage === 'analyzing' && <LoadingCard label="AI가 사진 속 단어를 읽고 정리하고 있어요..." />}
+      {stage === 'reading' && (
+        <ProgressCard label="사진에서 글자를 읽고 있어요..." percent={ocrProgress} />
+      )}
+
+      {stage === 'looking-up' && (
+        <ProgressCard
+          label={`단어 뜻을 찾고 있어요... (${lookupDone.done}/${lookupDone.total})`}
+          percent={lookupDone.total ? lookupDone.done / lookupDone.total : 0}
+        />
+      )}
 
       {stage === 'review' && (
         <div className="flex flex-col gap-3">
@@ -241,21 +251,13 @@ function ManualAdd() {
     setLoading(true)
     setError(undefined)
     setSaved(false)
-    setCandidate(undefined)
-
-    try {
-      const ai = await lookupWordAi(word)
-      if (!ai) {
-        setError('AI가 이 단어를 찾지 못했어요. 잠시 후 다시 시도해주세요.')
-        return
-      }
-      const [withAudio] = await enrichWithAudio([toCandidate(ai)])
-      setCandidate(withAudio)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '단어를 찾는 중 문제가 생겼어요.')
-    } finally {
-      setLoading(false)
+    const info = await fetchWordInfoSmart(word)
+    const koGloss = await fetchKoreanGloss(info?.word ?? word)
+    setCandidate({ word: info?.word ?? word, info, meaning: koGloss ?? info?.definitionEn ?? '', included: true })
+    if (!info) {
+      setError('사전에 없는 단어예요. 뜻을 직접 입력해주세요.')
     }
+    setLoading(false)
   }
 
   function save() {
@@ -268,13 +270,13 @@ function ManualAdd() {
     const word: WordEntry = {
       id,
       word: candidate.word,
-      phonetic: candidate.phonetic,
-      audioUrl: candidate.audioUrl,
-      partOfSpeech: candidate.partOfSpeech,
-      definitionEn: candidate.definitionEn || candidate.meaning.trim(),
+      phonetic: candidate.info?.phonetic,
+      audioUrl: candidate.info?.audioUrl,
+      partOfSpeech: candidate.info?.partOfSpeech,
+      definitionEn: candidate.info?.definitionEn ?? candidate.meaning.trim(),
       meaningKo: candidate.meaning.trim() || undefined,
-      synonyms: candidate.synonyms,
-      antonyms: candidate.antonyms,
+      synonyms: candidate.info?.synonyms ?? [],
+      antonyms: candidate.info?.antonyms ?? [],
       batchId: '',
       addedAt: now.toISOString(),
       source: 'manual',
@@ -314,11 +316,7 @@ function ManualAdd() {
         </button>
       </div>
 
-      {loading && <LoadingCard label="AI가 단어 뜻을 찾고 있어요..." />}
-
-      {candidate && (
-        <CandidateRow candidate={candidate} onChange={(patch) => setCandidate({ ...candidate, ...patch })} />
-      )}
+      {candidate && <CandidateRow candidate={candidate} onChange={(patch) => setCandidate({ ...candidate, ...patch })} />}
 
       {candidate && (
         <button onClick={save} className="rounded-2xl bg-sky-500 py-3 font-bold text-white active:scale-95">
@@ -326,9 +324,7 @@ function ManualAdd() {
         </button>
       )}
 
-      {saved && (
-        <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-center font-bold text-emerald-600">🎉 저장했어요!</p>
-      )}
+      {saved && <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-center font-bold text-emerald-600">🎉 저장했어요!</p>}
       {error && <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-500">{error}</p>}
     </div>
   )
@@ -353,25 +349,32 @@ function CandidateRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="font-display text-xl text-slate-800">{candidate.word}</span>
-            {candidate.phonetic && <span className="text-sm text-slate-400">{candidate.phonetic}</span>}
-            {candidate.partOfSpeech && (
+            {candidate.info?.phonetic && <span className="text-sm text-slate-400">{candidate.info.phonetic}</span>}
+            {candidate.info?.partOfSpeech && (
               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-600">
-                {candidate.partOfSpeech}
+                {candidate.info.partOfSpeech}
+              </span>
+            )}
+            {!candidate.info && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-600">
+                사전에 없어요
               </span>
             )}
           </div>
-          {candidate.definitionEn && <p className="mt-1 text-sm text-slate-400">{candidate.definitionEn}</p>}
+          {candidate.info?.definitionEn && (
+            <p className="mt-1 text-sm text-slate-400">{candidate.info.definitionEn}</p>
+          )}
           <input
             value={candidate.meaning}
             onChange={(e) => onChange({ meaning: e.target.value })}
             placeholder="아이가 이해하기 쉬운 뜻을 적어주세요"
             className="mt-2 w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-base outline-none focus:border-sky-400"
           />
-          {candidate.synonyms.length > 0 && (
-            <p className="mt-1 text-xs text-slate-400">비슷한 말: {candidate.synonyms.join(', ')}</p>
+          {(candidate.info?.synonyms?.length ?? 0) > 0 && (
+            <p className="mt-1 text-xs text-slate-400">비슷한 말: {candidate.info!.synonyms.join(', ')}</p>
           )}
-          {candidate.antonyms.length > 0 && (
-            <p className="text-xs text-slate-400">반대말: {candidate.antonyms.join(', ')}</p>
+          {(candidate.info?.antonyms?.length ?? 0) > 0 && (
+            <p className="text-xs text-slate-400">반대말: {candidate.info!.antonyms.join(', ')}</p>
           )}
         </div>
       </div>
@@ -379,12 +382,15 @@ function CandidateRow({
   )
 }
 
-function LoadingCard({ label }: { label: string }) {
+function ProgressCard({ label, percent }: { label: string; percent: number }) {
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <p className="mb-2 text-center font-bold text-slate-600">{label}</p>
       <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full w-2/5 animate-pulse rounded-full bg-sky-400" />
+        <div
+          className="h-full rounded-full bg-sky-400 transition-all"
+          style={{ width: `${Math.round(percent * 100)}%` }}
+        />
       </div>
     </div>
   )
