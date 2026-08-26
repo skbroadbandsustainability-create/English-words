@@ -30,13 +30,13 @@ export default function StatsView() {
         {recentResults.length === 0 ? (
           <p className="text-sm text-slate-400">아직 테스트한 기록이 없어요</p>
         ) : (
-          <div className="flex items-end gap-2" style={{ height: 120 }}>
+          <div className="flex items-stretch gap-2" style={{ height: 120 }}>
             {recentResults.map((r) => {
               const pct = r.total ? r.correct / r.total : 0
               return (
-                <div key={r.id} className="flex flex-1 flex-col items-center gap-1">
+                <div key={r.id} className="flex flex-1 flex-col items-center justify-end gap-1">
                   <div
-                    className="w-full rounded-t-lg bg-sky-400"
+                    className="w-full min-h-[6px] rounded-t-lg bg-sky-400"
                     style={{ height: `${Math.max(6, pct * 100)}%` }}
                     title={`${r.correct}/${r.total}`}
                   />
