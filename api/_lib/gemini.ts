@@ -15,7 +15,7 @@ export function getGeminiClient(): GoogleGenAI {
 }
 
 // Google AI Studio(ai.google.dev)에서 무료로 발급받는 키로 쓸 수 있는 모델.
-export const GEMINI_MODEL = 'gemini-2.5-flash'
+export const GEMINI_MODEL = 'gemini-3.6-flash'
 
 export interface AiWord {
   word: string
