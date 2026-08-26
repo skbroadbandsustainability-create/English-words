@@ -19,8 +19,8 @@
 - **프론트엔드**: React + TypeScript + Vite + Tailwind CSS (정적 사이트)
 - **백엔드**: Vercel 서버리스 함수
   - `/api/extract-words`, `/api/word-info`, `/api/example-sentences` — **Google Gemini API**로 사진 속 단어 추출, 단어 뜻 조회, 빈칸 채우기용 예문 생성을 처리해요.
-  - `/api/sync` — 단어장 전체를 **Upstash Redis**에 저장/조회해서 기기 간 동기화를 처리해요. 변경할 때마다 자동으로 올리고, 다른 탭/기기에서 바뀐 게 있으면 주기적으로 받아와요.
-- Gemini API는 [Google AI Studio](https://aistudio.google.com/app/apikey)에서, Redis는 [upstash.com](https://upstash.com)에서 **둘 다 신용카드 등록 없이 무료로** 만들 수 있어요. 키들은 서버리스 함수 안에서만 쓰이고 브라우저에는 절대 노출되지 않아요.
+  - `/api/sync` — 단어장 전체를 **Firebase Realtime Database**에 저장/조회해서 기기 간 동기화를 처리해요. 변경할 때마다 자동으로 올리고, 다른 탭/기기에서 바뀐 게 있으면 주기적으로 받아와요.
+- Gemini API와 Firebase 둘 다 **같은 Google 계정으로, 신용카드 등록 없이 무료로** 만들 수 있어요. 키/URL은 서버리스 함수 안에서만 쓰이고 브라우저에는 절대 노출되지 않아요.
 
 > ⚠️ **GitHub Pages는 정적 파일만 서빙**하기 때문에 `/api/*` 서버리스 함수가 동작하지 않아요. 사진/단어 추가, 기기 간 동기화 기능을 쓰려면 아래처럼 **Vercel로 배포**해야 해요.
 
@@ -28,8 +28,8 @@
 
 1. https://vercel.com 에서 이 GitHub 저장소를 Import 해요. (Framework Preset은 자동으로 Vite로 잡혀요)
 2. https://aistudio.google.com/app/apikey 에서 **Create API key**로 Gemini 무료 키를 발급받아요.
-3. https://upstash.com 에서 무료 Redis 데이터베이스를 만들고, "REST API" 섹션에서 URL/TOKEN을 확인해요.
-4. Vercel 프로젝트 Settings → Environment Variables에서 `GEMINI_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`을 추가해요 (Production/Preview/Development 모두 체크).
+3. https://console.firebase.google.com 에서 (Gemini 때와 같은 구글 계정으로) 새 프로젝트를 만들고, **Build → Realtime Database → 데이터베이스 만들기**를 눌러요. 보안 규칙은 테스트 모드로 시작해도 되고, 이 앱은 로그인이 없으니 규칙을 `{"rules": {".read": true, ".write": true}}`로 열어두면 돼요. 만들어진 **데이터베이스 URL**을 복사해요.
+4. Vercel 프로젝트 Settings → Environment Variables에서 `GEMINI_API_KEY`, `FIREBASE_DB_URL`을 추가해요 (Production/Preview/Development 모두 체크).
 5. Deploy를 누르면 끝! 이후 `main` 브랜치에 push할 때마다 자동으로 다시 배포돼요.
 
 ## 개발
