@@ -1,6 +1,6 @@
-import { extractToolInput, getAnthropicClient, WORD_ITEM_SCHEMA } from './_lib/anthropic'
-import type { AiWord } from './_lib/anthropic'
-import type { ApiRequest, ApiResponse } from './_lib/types'
+import { extractToolInput, getAnthropicClient, WORD_ITEM_SCHEMA } from './_lib/anthropic.js'
+import type { AiWord } from './_lib/anthropic.js'
+import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
 interface RequestBody {
   word?: string
