@@ -15,9 +15,14 @@ export default function QuizQuestion({ question, index, total, onAnswered }: Pro
   function choose(choiceIndex: number) {
     if (selected !== null) return
     setSelected(choiceIndex)
-    const correct = choiceIndex === question.answerIndex
-    window.setTimeout(() => onAnswered(correct), 900)
   }
+
+  function next() {
+    if (selected === null) return
+    onAnswered(selected === question.answerIndex)
+  }
+
+  const isCorrectChoice = selected !== null && selected === question.answerIndex
 
   return (
     <div className="flex flex-col gap-5">
@@ -55,6 +60,17 @@ export default function QuizQuestion({ question, index, total, onAnswered }: Pro
           )
         })}
       </div>
+
+      {selected !== null && (
+        <button
+          onClick={next}
+          className={`no-select rounded-2xl py-4 text-lg font-bold text-white transition-transform active:scale-95 ${
+            isCorrectChoice ? 'bg-emerald-500' : 'bg-sky-500'
+          }`}
+        >
+          {isCorrectChoice ? '🎉 다음 문제' : '정답 확인했어요, 다음 문제'}
+        </button>
+      )}
     </div>
   )
 }

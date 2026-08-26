@@ -27,7 +27,9 @@ export default function TestView() {
   )
 
   function start() {
-    const count = Math.min(10, pool.length)
+    // 특정 날짜를 골랐으면 그날 등록한 단어 전체가 다 나오고,
+    // '전체'를 섞어서 볼 때는 너무 길어지지 않게 최대 20문제로 제한한다.
+    const count = selectedDate === 'all' ? Math.min(20, pool.length) : pool.length
     setQuestions(buildQuizQuestions(pool, count))
     setQIndex(0)
     setCorrectCount(0)
@@ -86,9 +88,13 @@ export default function TestView() {
 
         <div className="rounded-3xl bg-white p-6 text-center shadow-sm">
           <p className="font-display text-xl text-slate-700">
-            {selectedDate === 'all' ? '지금까지 모은 모든 단어' : `${formatDateShort(selectedDate)}에 등록한 단어`}
+            {selectedDate === 'all' ? '지금까지 모은 모든 단어를 섞어서' : `${formatDateShort(selectedDate)}에 등록한 단어`}
           </p>
-          <p className="mt-1 text-slate-400">{pool.length}개로 테스트할 수 있어요</p>
+          <p className="mt-1 text-slate-400">
+            {selectedDate === 'all'
+              ? `${Math.min(20, pool.length)}문제로 테스트해요`
+              : `${pool.length}개 전부 테스트해요`}
+          </p>
 
           {pool.length < 2 ? (
             <p className="mt-4 text-sm text-amber-500">테스트하려면 단어가 2개 이상 필요해요.</p>
