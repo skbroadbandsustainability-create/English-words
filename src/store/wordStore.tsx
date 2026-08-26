@@ -18,12 +18,44 @@ function todayKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * 예전 버전에서 저장된 테스트 기록(scope/direction 필드가 없던 시절 등)을 읽어와도
+ * 화면이 죽지 않도록, 필드가 빠져있으면 안전한 기본값으로 채워 넣는다.
+ */
+function normalizeQuizResult(raw: unknown): QuizResult | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (
+    typeof r.id !== 'string' ||
+    typeof r.total !== 'number' ||
+    typeof r.correct !== 'number' ||
+    typeof r.takenAt !== 'string'
+  ) {
+    return null
+  }
+  return {
+    id: r.id,
+    scope: typeof r.scope === 'string' ? r.scope : 'all',
+    direction: r.direction === 'meaningToWord' ? 'meaningToWord' : 'wordToMeaning',
+    total: r.total,
+    correct: r.correct,
+    takenAt: r.takenAt,
+    missedWordIds: Array.isArray(r.missedWordIds)
+      ? r.missedWordIds.filter((x): x is string => typeof x === 'string')
+      : [],
+  }
+}
+
 function loadInitialState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_STATE
     const parsed = JSON.parse(raw)
-    return { ...DEFAULT_STATE, ...parsed }
+    const merged: AppState = { ...DEFAULT_STATE, ...parsed }
+    merged.quizResults = Array.isArray(parsed.quizResults)
+      ? parsed.quizResults.map(normalizeQuizResult).filter((r: QuizResult | null): r is QuizResult => r !== null)
+      : []
+    return merged
   } catch {
     return DEFAULT_STATE
   }

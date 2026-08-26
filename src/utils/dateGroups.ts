@@ -23,8 +23,10 @@ export function groupWordsByDate(words: WordEntry[]): DateGroup[] {
     .map(([date, groupWords]) => ({ date, words: groupWords }))
 }
 
-/** "2026-08-26" -> "8/26" */
+/** "2026-08-26" -> "8/26". 형식이 아닌 값이 들어와도 죽지 않고 그대로 돌려준다. */
 export function formatDateShort(dateKey: string): string {
-  const [, month, day] = dateKey.split('-')
+  const parts = dateKey?.split('-') ?? []
+  if (parts.length < 3) return dateKey ?? ''
+  const [, month, day] = parts
   return `${Number(month)}/${Number(day)}`
 }
