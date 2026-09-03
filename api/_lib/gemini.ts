@@ -26,32 +26,46 @@ export interface AiWord {
   antonyms: string[]
 }
 
-// 단어 하나 분량의 JSON 스키마 (Gemini의 구조화 출력 강제 기능에 사용)
-const WORD_ITEM_SCHEMA: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    word: {
-      type: Type.STRING,
-      description: '단어의 기본형(사전형). 예: cats -> cat, ran -> run, happier -> happy',
+// 단어 하나 분량의 JSON 스키마 (Gemini의 구조화 출력 강제 기능에 사용).
+// word 필드 설명만 용도에 따라 다르게 줘야 해서(사진 추출은 사전형으로, 직접 입력은
+// 입력한 형태 그대로) 나머지 필드를 공유하는 빌더 함수로 뺐다.
+function buildWordItemSchema(wordFieldDescription: string): Schema {
+  return {
+    type: Type.OBJECT,
+    properties: {
+      word: { type: Type.STRING, description: wordFieldDescription },
+      partOfSpeech: {
+        type: Type.STRING,
+        description: '이 단어가 지금 이 형태로 흔히 쓰이는 품사 (noun, verb, adjective 등 영어로)',
+      },
+      definitionEn: { type: Type.STRING, description: '초등학생도 이해할 수 있는 아주 쉬운 영어 설명 한 문장' },
+      meaningKo: { type: Type.STRING, description: '초등학생이 이해하기 쉬운 짧은 한글 뜻' },
+      synonyms: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: '비슷한 뜻의 영어 단어. 가장 흔하고 쉬운 것 위주로 딱 2~3개만.',
+        maxItems: '3',
+      },
+      antonyms: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: '반대 뜻의 영어 단어. 가장 흔하고 쉬운 것 위주로 딱 2~3개만.',
+        maxItems: '3',
+      },
     },
-    partOfSpeech: { type: Type.STRING, description: '품사 (noun, verb, adjective 등 영어로)' },
-    definitionEn: { type: Type.STRING, description: '초등학생도 이해할 수 있는 아주 쉬운 영어 설명 한 문장' },
-    meaningKo: { type: Type.STRING, description: '초등학생이 이해하기 쉬운 짧은 한글 뜻' },
-    synonyms: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '비슷한 뜻의 영어 단어. 가장 흔하고 쉬운 것 위주로 딱 2~3개만.',
-      maxItems: '3',
-    },
-    antonyms: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '반대 뜻의 영어 단어. 가장 흔하고 쉬운 것 위주로 딱 2~3개만.',
-      maxItems: '3',
-    },
-  },
-  required: ['word', 'definitionEn', 'meaningKo'],
+    required: ['word', 'definitionEn', 'meaningKo'],
+  }
 }
+
+// 사진에서 뽑은 단어용: 복수형/과거형 등을 사전형(기본형)으로 정리한다.
+const WORD_ITEM_SCHEMA = buildWordItemSchema(
+  '단어의 기본형(사전형). 예: cats -> cat, ran -> run, happier -> happy',
+)
+
+// 직접 입력한 단어용: 입력한 철자를 절대 바꾸지 않고, 그 형태 그대로 분석한다.
+// (예: "linked"를 입력했으면 동사 link의 과거형이 아니라, "연결된"이라는 뜻의
+// 형용사처럼 그 형태 자체로 흔히 쓰이는 뜻/품사를 그대로 설명해야 함)
+const EXACT_WORD_ITEM_SCHEMA = buildWordItemSchema('입력받은 단어의 철자를 절대 바꾸지 말고 정확히 그대로 담아라.')
 
 export const WORDS_LIST_SCHEMA: Schema = {
   type: Type.OBJECT,
@@ -61,7 +75,7 @@ export const WORDS_LIST_SCHEMA: Schema = {
   required: ['words'],
 }
 
-export const SINGLE_WORD_SCHEMA: Schema = WORD_ITEM_SCHEMA
+export const SINGLE_WORD_SCHEMA: Schema = EXACT_WORD_ITEM_SCHEMA
 
 export interface AiSentence {
   word: string
