@@ -20,6 +20,16 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   return body.detail ? `${base} (${body.detail})` : base
 }
 
+/** AI 서버가 가끔 느리게(콜드 스타트 등) 응답할 때, 사용자에게 바로 에러를 보여주지 않고 한 번 더 조용히 시도해본다. */
+async function withRetry<T>(fn: () => Promise<T>, retries = 1): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    if (retries <= 0) throw err
+    return withRetry(fn, retries - 1)
+  }
+}
+
 /** 사진을 서버로 보내기 전, 브라우저에서 적당한 크기로 줄여서 base64로 바꾼다(용량/속도 절약). */
 async function fileToResizedBase64(
   file: File,
@@ -60,55 +70,61 @@ function blobToBase64(blob: Blob): Promise<string> {
 /** 책 사진을 AI(Gemini)에게 보내 사진 속 영어 단어들을 뜻과 함께 정리해서 받아온다. */
 export async function extractWordsFromPhoto(file: File): Promise<AiWordResult[]> {
   const { base64, mediaType } = await fileToResizedBase64(file)
-  const res = await fetchWithTimeout(
-    '/api/extract-words',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: base64, mediaType }),
-    },
-    45000,
-  )
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
-  }
-  const data = await res.json()
-  return (data.words ?? []) as AiWordResult[]
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(
+      '/api/extract-words',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mediaType }),
+      },
+      65000, // 서버 쪽 제한(60초)보다 여유 있게 잡아서, 서버가 끝내기 전에 먼저 끊기지 않게 한다.
+    )
+    if (!res.ok) {
+      throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+    }
+    const data = await res.json()
+    return (data.words ?? []) as AiWordResult[]
+  })
 }
 
 /** 단어 하나를 AI(Gemini)에게 물어서 뜻/유의어/반의어를 받아온다. */
 export async function lookupWordAi(word: string): Promise<AiWordResult | null> {
-  const res = await fetchWithTimeout(
-    '/api/word-info',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ word }),
-    },
-    25000,
-  )
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
-  }
-  const data = await res.json()
-  return (data.word ?? null) as AiWordResult | null
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(
+      '/api/word-info',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word }),
+      },
+      35000, // 서버 쪽 제한(30초)보다 여유 있게
+    )
+    if (!res.ok) {
+      throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+    }
+    const data = await res.json()
+    return (data.word ?? null) as AiWordResult | null
+  })
 }
 
 /** 빈칸 채우기 테스트용으로, 단어들이 자연스럽게 들어간 예문을 AI(Gemini)에게 받아온다. */
 export async function fetchExampleSentences(words: string[]): Promise<Record<string, string>> {
   if (words.length === 0) return {}
-  const res = await fetchWithTimeout(
-    '/api/example-sentences',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ words }),
-    },
-    30000,
-  )
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
-  }
-  const data = await res.json()
-  return (data.sentences ?? {}) as Record<string, string>
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(
+      '/api/example-sentences',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words }),
+      },
+      35000, // 서버 쪽 제한(30초)보다 여유 있게
+    )
+    if (!res.ok) {
+      throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+    }
+    const data = await res.json()
+    return (data.sentences ?? {}) as Record<string, string>
+  })
 }
