@@ -82,6 +82,37 @@ export interface AiSentence {
   sentence: string
 }
 
+export interface GeminiErrorInfo {
+  status: number
+  message: string
+  detail?: string
+}
+
+/**
+ * Gemini 무료 등급에서 흔히 나는 오류(분당 요청 제한 초과, 일시적 과부하)는
+ * 복잡한 원본 JSON 대신 사람이 이해할 수 있는 메시지로 바꿔서 돌려준다.
+ */
+export function describeGeminiError(err: unknown): GeminiErrorInfo {
+  const raw = err instanceof Error ? err.message : String(err)
+
+  if (raw.includes('RESOURCE_EXHAUSTED') || raw.includes('"code":429') || raw.includes('code: 429')) {
+    const match = raw.match(/retry in ([\d.]+)\s*s/i)
+    const seconds = match ? Math.ceil(Number(match[1])) : undefined
+    return {
+      status: 429,
+      message: seconds
+        ? `지금 요청이 많이 몰려서 잠깐 막혔어요. 약 ${seconds}초 후 다시 시도해주세요.`
+        : '지금 요청이 많이 몰려서 잠깐 막혔어요. 1분 정도 후 다시 시도해주세요.',
+    }
+  }
+
+  if (raw.includes('UNAVAILABLE') || raw.includes('"code":503') || raw.includes('code: 503')) {
+    return { status: 503, message: 'AI 서버가 지금 많이 붐벼요. 잠시 후 다시 시도해주세요.' }
+  }
+
+  return { status: 500, message: '문제가 생겼어요. 잠시 후 다시 시도해주세요.', detail: raw }
+}
+
 export const SENTENCES_SCHEMA: Schema = {
   type: Type.OBJECT,
   properties: {

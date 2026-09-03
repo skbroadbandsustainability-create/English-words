@@ -1,4 +1,4 @@
-import { getGeminiClient, GEMINI_MODEL, SENTENCES_SCHEMA } from './_lib/gemini.js'
+import { describeGeminiError, getGeminiClient, GEMINI_MODEL, SENTENCES_SCHEMA } from './_lib/gemini.js'
 import type { AiSentence } from './_lib/gemini.js'
 import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
@@ -56,7 +56,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     res.status(200).json({ sentences })
   } catch (err) {
     console.error('example-sentences failed', err)
-    const detail = err instanceof Error ? err.message : String(err)
-    res.status(500).json({ error: '예문을 만드는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.', detail })
+    const { status, message, detail } = describeGeminiError(err)
+    res.status(status).json({ error: message, detail })
   }
 }

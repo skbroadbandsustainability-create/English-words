@@ -14,10 +14,20 @@ interface ApiErrorBody {
   detail?: string
 }
 
+/** 재시도해도 똑같이 실패할 오류(요청 제한 초과 등)는 이걸로 표시해서 재시도를 건너뛴다. */
+class NonRetryableError extends Error {}
+
 async function readErrorMessage(res: Response, fallback: string): Promise<string> {
   const body = (await res.json().catch(() => ({}))) as ApiErrorBody
   const base = body.error ?? fallback
   return body.detail ? `${base} (${body.detail})` : base
+}
+
+async function throwForResponse(res: Response, fallback: string): Promise<never> {
+  const message = await readErrorMessage(res, fallback)
+  // 429(요청 제한 초과)는 바로 다시 불러도 똑같이 막히니, 재시도 없이 바로 알려준다.
+  if (res.status === 429) throw new NonRetryableError(message)
+  throw new Error(message)
 }
 
 /** AI 서버가 가끔 느리게(콜드 스타트 등) 응답할 때, 사용자에게 바로 에러를 보여주지 않고 한 번 더 조용히 시도해본다. */
@@ -25,7 +35,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 1): Promise<T> {
   try {
     return await fn()
   } catch (err) {
-    if (retries <= 0) throw err
+    if (retries <= 0 || err instanceof NonRetryableError) throw err
     return withRetry(fn, retries - 1)
   }
 }
@@ -81,7 +91,7 @@ export async function extractWordsFromPhoto(file: File): Promise<AiWordResult[]>
       65000, // 서버 쪽 제한(60초)보다 여유 있게 잡아서, 서버가 끝내기 전에 먼저 끊기지 않게 한다.
     )
     if (!res.ok) {
-      throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+      await throwForResponse(res, 'AI 서버에 연결하지 못했어요.')
     }
     const data = await res.json()
     return (data.words ?? []) as AiWordResult[]
@@ -101,7 +111,7 @@ export async function lookupWordAi(word: string): Promise<AiWordResult | null> {
       35000, // 서버 쪽 제한(30초)보다 여유 있게
     )
     if (!res.ok) {
-      throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+      await throwForResponse(res, 'AI 서버에 연결하지 못했어요.')
     }
     const data = await res.json()
     return (data.word ?? null) as AiWordResult | null
@@ -122,7 +132,7 @@ export async function fetchExampleSentences(words: string[]): Promise<Record<str
       35000, // 서버 쪽 제한(30초)보다 여유 있게
     )
     if (!res.ok) {
-      throw new Error(await readErrorMessage(res, 'AI 서버에 연결하지 못했어요.'))
+      await throwForResponse(res, 'AI 서버에 연결하지 못했어요.')
     }
     const data = await res.json()
     return (data.sentences ?? {}) as Record<string, string>

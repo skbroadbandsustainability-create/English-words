@@ -1,4 +1,4 @@
-import { getGeminiClient, GEMINI_MODEL, WORDS_LIST_SCHEMA } from './_lib/gemini.js'
+import { describeGeminiError, getGeminiClient, GEMINI_MODEL, WORDS_LIST_SCHEMA } from './_lib/gemini.js'
 import type { AiWord } from './_lib/gemini.js'
 import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
@@ -64,7 +64,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     res.status(200).json({ words: parsed.words ?? [] })
   } catch (err) {
     console.error('extract-words failed', err)
-    const detail = err instanceof Error ? err.message : String(err)
-    res.status(500).json({ error: '사진을 분석하는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.', detail })
+    const { status, message, detail } = describeGeminiError(err)
+    res.status(status).json({ error: message, detail })
   }
 }
