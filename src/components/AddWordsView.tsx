@@ -249,7 +249,9 @@ function ManualAdd() {
         setError('AI가 이 단어를 찾지 못했어요. 잠시 후 다시 시도해주세요.')
         return
       }
-      const [withAudio] = await enrichWithAudio([toCandidate(ai)])
+      // 사진 추출과 달리 직접 입력은 사용자가 정확히 원하는 형태를 타이핑한 거라,
+      // AI가 사전형으로 바꿔놨어도(예: linked -> link) 입력한 그대로 저장한다.
+      const [withAudio] = await enrichWithAudio([toCandidate({ ...ai, word })])
       setCandidate(withAudio)
     } catch (err) {
       setError(err instanceof Error ? err.message : '단어를 찾는 중 문제가 생겼어요.')
