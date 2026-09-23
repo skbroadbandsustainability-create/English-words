@@ -29,6 +29,7 @@ export default function TestView() {
   const [qIndex, setQIndex] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
   const [missed, setMissed] = useState<string[]>([])
+  const [loadingProgress, setLoadingProgress] = useState<{ done: number; total: number } | null>(null)
 
   const pool = useMemo(
     () => (selectedDate === 'all' ? state.words : state.words.filter((w) => dateKeyOf(w) === selectedDate)),
@@ -53,10 +54,22 @@ export default function TestView() {
     }
 
     // 빈칸 채우기는 단어마다 예문이 있어야 해서, 없는 단어는 AI에게 새로 만들어달라고 요청한다.
+    // 한 번에 너무 많은 단어를 요청하면 AI 요청 제한(429)에 걸리기 쉬워서 10개씩 나눠서 순서대로 요청한다.
     setStage('loading')
+    setLoadingProgress(null)
     try {
       const missing = pool.filter((w) => !hasUsableExampleSentence(w))
-      const sentenceMap = missing.length > 0 ? await fetchExampleSentences(missing.map((w) => w.word)) : {}
+      const BATCH_SIZE = 10
+      const sentenceMap: Record<string, string> = {}
+      if (missing.length > 0) {
+        setLoadingProgress({ done: 0, total: missing.length })
+        for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+          const chunk = missing.slice(i, i + BATCH_SIZE)
+          const chunkResult = await fetchExampleSentences(chunk.map((w) => w.word))
+          Object.assign(sentenceMap, chunkResult)
+          setLoadingProgress({ done: Math.min(i + BATCH_SIZE, missing.length), total: missing.length })
+        }
+      }
 
       const merged = pool.map((w) => {
         if (hasUsableExampleSentence(w)) return w
@@ -182,7 +195,10 @@ export default function TestView() {
         <div className="h-3 w-40 overflow-hidden rounded-full bg-sky-100">
           <div className="h-full w-2/5 animate-pulse rounded-full bg-sky-400" />
         </div>
-        <p className="font-bold text-slate-500">AI가 빈칸 채우기 예문을 만들고 있어요...</p>
+        <p className="font-bold text-slate-500">
+          AI가 빈칸 채우기 예문을 만들고 있어요...
+          {loadingProgress && loadingProgress.total > 0 && ` (${loadingProgress.done}/${loadingProgress.total})`}
+        </p>
       </div>
     )
   }
