@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import QuizQuestion from './QuizQuestion'
 import DateChip from './DateChip'
@@ -11,7 +11,7 @@ import type { QuizResult, WordEntry } from '../types'
 
 type Stage = 'setup' | 'loading' | 'in-progress' | 'result'
 
-const MAX_RATE_LIMIT_WAITS = 3
+const MAX_RATE_LIMIT_WAITS = 1
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -37,6 +37,7 @@ export default function TestView() {
   const [missed, setMissed] = useState<string[]>([])
   const [loadingProgress, setLoadingProgress] = useState<{ done: number; total: number } | null>(null)
   const [retryNotice, setRetryNotice] = useState<string | undefined>()
+  const cancelledRef = useRef(false)
 
   const pool = useMemo(
     () => (selectedDate === 'all' ? state.words : state.words.filter((w) => dateKeyOf(w) === selectedDate)),
@@ -62,6 +63,7 @@ export default function TestView() {
 
     // 빈칸 채우기는 단어마다 예문이 있어야 해서, 없는 단어는 AI에게 새로 만들어달라고 요청한다.
     // 한 번에 너무 많은 단어를 요청하면 AI 요청 제한(429)에 걸리기 쉬워서 10개씩 나눠서 순서대로 요청한다.
+    cancelledRef.current = false
     setStage('loading')
     setLoadingProgress(null)
     setRetryNotice(undefined)
@@ -72,6 +74,8 @@ export default function TestView() {
       if (missing.length > 0) {
         setLoadingProgress({ done: 0, total: missing.length })
         for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+          if (cancelledRef.current) return
+
           const chunk = missing.slice(i, i + BATCH_SIZE)
           let chunkResult: Record<string, string> | undefined
           for (let attempt = 0; ; attempt++) {
@@ -84,28 +88,30 @@ export default function TestView() {
                 const waitSeconds = err.retryAfterSeconds + 2
                 setRetryNotice(`요청이 많이 몰려서 ${waitSeconds}초 후 자동으로 다시 시도해요...`)
                 await wait(waitSeconds * 1000)
+                if (cancelledRef.current) return
                 continue
               }
               throw err
             }
           }
-          Object.assign(sentenceMap, chunkResult)
+
+          // 이 묶음까지 만든 예문은 바로 저장해서, 중간에 실패해도 처음부터 다시 요청하지 않게 한다.
+          for (const w of chunk) {
+            const sentence = chunkResult[w.word]
+            if (sentence) {
+              Object.assign(sentenceMap, { [w.word]: sentence })
+              dispatch({ type: 'UPDATE_WORD', word: { ...w, exampleSentence: sentence } })
+            }
+          }
           setLoadingProgress({ done: Math.min(i + BATCH_SIZE, missing.length), total: missing.length })
         }
       }
 
-      const merged = pool.map((w) => {
-        if (hasUsableExampleSentence(w)) return w
-        const sentence = sentenceMap[w.word]
-        return sentence ? { ...w, exampleSentence: sentence } : w
-      })
-      merged.forEach((w, i) => {
-        if (w.exampleSentence && w.exampleSentence !== pool[i].exampleSentence) {
-          dispatch({ type: 'UPDATE_WORD', word: w })
-        }
-      })
+      if (cancelledRef.current) return
 
-      const usable = merged.filter(hasUsableExampleSentence)
+      const usable = pool
+        .map((w) => (hasUsableExampleSentence(w) ? w : sentenceMap[w.word] ? { ...w, exampleSentence: sentenceMap[w.word] } : w))
+        .filter(hasUsableExampleSentence)
       if (usable.length < 2) {
         setError('예문을 만들 수 있는 단어가 부족해요. 다른 유형으로 시도해보세요.')
         setStage('setup')
@@ -113,10 +119,17 @@ export default function TestView() {
       }
       launch(usable)
     } catch (err) {
+      if (cancelledRef.current) return
       setRetryNotice(undefined)
       setError(err instanceof Error ? err.message : '예문을 만드는 중 문제가 생겼어요.')
       setStage('setup')
     }
+  }
+
+  function cancelLoading() {
+    cancelledRef.current = true
+    setRetryNotice(undefined)
+    setStage('setup')
   }
 
   function handleAnswered(correct: boolean) {
@@ -224,6 +237,9 @@ export default function TestView() {
           {loadingProgress && loadingProgress.total > 0 && ` (${loadingProgress.done}/${loadingProgress.total})`}
         </p>
         {retryNotice && <p className="text-sm font-bold text-amber-500">{retryNotice}</p>}
+        <button onClick={cancelLoading} className="mt-2 text-sm font-bold text-slate-400 underline">
+          취소하고 돌아가기
+        </button>
       </div>
     )
   }
