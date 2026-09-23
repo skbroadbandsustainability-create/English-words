@@ -56,7 +56,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     res.status(200).json({ sentences })
   } catch (err) {
     console.error('example-sentences failed', err)
-    const { status, message, detail } = describeGeminiError(err)
-    res.status(status).json({ error: message, detail })
+    const { status, message, detail, retryAfterSeconds } = describeGeminiError(err)
+    res.status(status).json({ error: message, detail, retryAfterSeconds })
   }
 }

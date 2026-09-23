@@ -86,6 +86,7 @@ export interface GeminiErrorInfo {
   status: number
   message: string
   detail?: string
+  retryAfterSeconds?: number
 }
 
 /**
@@ -103,6 +104,7 @@ export function describeGeminiError(err: unknown): GeminiErrorInfo {
       message: seconds
         ? `지금 요청이 많이 몰려서 잠깐 막혔어요. 약 ${seconds}초 후 다시 시도해주세요.`
         : '지금 요청이 많이 몰려서 잠깐 막혔어요. 1분 정도 후 다시 시도해주세요.',
+      retryAfterSeconds: seconds ?? 60,
     }
   }
 

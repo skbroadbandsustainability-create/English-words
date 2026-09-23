@@ -12,21 +12,32 @@ export interface AiWordResult {
 interface ApiErrorBody {
   error?: string
   detail?: string
+  retryAfterSeconds?: number
 }
 
-/** 재시도해도 똑같이 실패할 오류(요청 제한 초과 등)는 이걸로 표시해서 재시도를 건너뛴다. */
+/** 재시도해도 똑같이 실패할 오류(요청 제한 초과 등)는 이걸로 표시해서 무조건 재시도를 건너뛴다. */
 class NonRetryableError extends Error {}
 
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+/** 분당 요청 제한(429)에 걸렸을 때. 몇 초 후에 풀리는지 알려줘서, 호출한 쪽에서 그만큼 기다렸다 다시 시도할 수 있게 한다. */
+export class RateLimitError extends NonRetryableError {
+  retryAfterSeconds: number
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message)
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
+
+async function readErrorBody(res: Response, fallback: string): Promise<{ message: string; retryAfterSeconds?: number }> {
   const body = (await res.json().catch(() => ({}))) as ApiErrorBody
   const base = body.error ?? fallback
-  return body.detail ? `${base} (${body.detail})` : base
+  const message = body.detail ? `${base} (${body.detail})` : base
+  return { message, retryAfterSeconds: body.retryAfterSeconds }
 }
 
 async function throwForResponse(res: Response, fallback: string): Promise<never> {
-  const message = await readErrorMessage(res, fallback)
-  // 429(요청 제한 초과)는 바로 다시 불러도 똑같이 막히니, 재시도 없이 바로 알려준다.
-  if (res.status === 429) throw new NonRetryableError(message)
+  const { message, retryAfterSeconds } = await readErrorBody(res, fallback)
+  // 429(요청 제한 초과)는 바로 다시 불러도 똑같이 막히니, 무작정 재시도하지 않는다.
+  if (res.status === 429) throw new RateLimitError(message, retryAfterSeconds ?? 60)
   throw new Error(message)
 }
 

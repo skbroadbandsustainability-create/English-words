@@ -6,10 +6,16 @@ import { useWords } from '../store/wordStore'
 import { buildQuizQuestions, generateId, hasUsableExampleSentence } from '../utils/words'
 import type { QuizDirection, QuizQuestion as QuizQuestionType } from '../utils/words'
 import { dateKeyOf, formatDateShort, groupWordsByDate } from '../utils/dateGroups'
-import { fetchExampleSentences } from '../services/aiWords'
+import { fetchExampleSentences, RateLimitError } from '../services/aiWords'
 import type { QuizResult, WordEntry } from '../types'
 
 type Stage = 'setup' | 'loading' | 'in-progress' | 'result'
+
+const MAX_RATE_LIMIT_WAITS = 3
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 const DIRECTION_OPTIONS: { key: QuizDirection; label: string }[] = [
   { key: 'wordToMeaning', label: '단어 → 뜻' },
@@ -30,6 +36,7 @@ export default function TestView() {
   const [correctCount, setCorrectCount] = useState(0)
   const [missed, setMissed] = useState<string[]>([])
   const [loadingProgress, setLoadingProgress] = useState<{ done: number; total: number } | null>(null)
+  const [retryNotice, setRetryNotice] = useState<string | undefined>()
 
   const pool = useMemo(
     () => (selectedDate === 'all' ? state.words : state.words.filter((w) => dateKeyOf(w) === selectedDate)),
@@ -57,6 +64,7 @@ export default function TestView() {
     // 한 번에 너무 많은 단어를 요청하면 AI 요청 제한(429)에 걸리기 쉬워서 10개씩 나눠서 순서대로 요청한다.
     setStage('loading')
     setLoadingProgress(null)
+    setRetryNotice(undefined)
     try {
       const missing = pool.filter((w) => !hasUsableExampleSentence(w))
       const BATCH_SIZE = 10
@@ -65,7 +73,22 @@ export default function TestView() {
         setLoadingProgress({ done: 0, total: missing.length })
         for (let i = 0; i < missing.length; i += BATCH_SIZE) {
           const chunk = missing.slice(i, i + BATCH_SIZE)
-          const chunkResult = await fetchExampleSentences(chunk.map((w) => w.word))
+          let chunkResult: Record<string, string> | undefined
+          for (let attempt = 0; ; attempt++) {
+            try {
+              chunkResult = await fetchExampleSentences(chunk.map((w) => w.word))
+              setRetryNotice(undefined)
+              break
+            } catch (err) {
+              if (err instanceof RateLimitError && attempt < MAX_RATE_LIMIT_WAITS) {
+                const waitSeconds = err.retryAfterSeconds + 2
+                setRetryNotice(`요청이 많이 몰려서 ${waitSeconds}초 후 자동으로 다시 시도해요...`)
+                await wait(waitSeconds * 1000)
+                continue
+              }
+              throw err
+            }
+          }
           Object.assign(sentenceMap, chunkResult)
           setLoadingProgress({ done: Math.min(i + BATCH_SIZE, missing.length), total: missing.length })
         }
@@ -90,6 +113,7 @@ export default function TestView() {
       }
       launch(usable)
     } catch (err) {
+      setRetryNotice(undefined)
       setError(err instanceof Error ? err.message : '예문을 만드는 중 문제가 생겼어요.')
       setStage('setup')
     }
@@ -199,6 +223,7 @@ export default function TestView() {
           AI가 빈칸 채우기 예문을 만들고 있어요...
           {loadingProgress && loadingProgress.total > 0 && ` (${loadingProgress.done}/${loadingProgress.total})`}
         </p>
+        {retryNotice && <p className="text-sm font-bold text-amber-500">{retryNotice}</p>}
       </div>
     )
   }
