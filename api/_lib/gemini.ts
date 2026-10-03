@@ -15,7 +15,10 @@ export function getGeminiClient(): GoogleGenAI {
 }
 
 // Google AI Studio(ai.google.dev)에서 무료로 발급받는 키로 쓸 수 있는 모델.
-export const GEMINI_MODEL = 'gemini-3.6-flash'
+// flash(gemini-3.6-flash)는 무료 등급 일일 요청 한도가 낮아서 이 앱처럼 하루에 AI 요청을
+// 여러 번 보내는 경우 429(요청 제한)에 자주 걸린다. flash-lite는 성능은 조금 가볍지만
+// 무료 등급 한도가 훨씬 넉넉해서(분당/일일 요청 수 모두 더 큼) 이쪽으로 바꿨다.
+export const GEMINI_MODEL = 'gemini-3.1-flash-lite'
 
 export interface AiWord {
   word: string
