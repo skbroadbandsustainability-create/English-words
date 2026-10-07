@@ -1,4 +1,5 @@
 import { firebaseGet, firebaseSet } from './_lib/firebase.js'
+import { mergeAppState } from './_lib/mergeState.js'
 import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
 export const config = { maxDuration: 15 }
@@ -25,13 +26,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   if (req.method === 'POST') {
     const body = (req.body ?? {}) as Partial<SyncPayload>
-    if (!body.state || typeof body.updatedAt !== 'string') {
+    if (!body.state) {
       res.status(400).json({ error: '저장할 데이터가 없어요.' })
       return
     }
     try {
-      await firebaseSet(SYNC_PATH, { state: body.state, updatedAt: body.updatedAt })
-      res.status(200).json({ ok: true })
+      // 다른 기기가 그 사이에 추가한 단어를 덮어쓰지 않도록, 지금 저장된 내용과 합쳐서 저장한다.
+      const existing = await firebaseGet<SyncPayload>(SYNC_PATH)
+      const merged = mergeAppState(existing?.state, body.state)
+      const updatedAt = new Date().toISOString()
+      await firebaseSet(SYNC_PATH, { state: merged, updatedAt })
+      res.status(200).json({ ok: true, payload: { state: merged, updatedAt } })
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
       res.status(500).json({ error: '동기화 서버에 저장하지 못했어요.', detail })

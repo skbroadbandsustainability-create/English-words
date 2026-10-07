@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { DEFAULT_STATE, STORAGE_KEY } from '../types'
 import type { AppState, Batch, QuizResult, WordEntry } from '../types'
 import { fetchCloudState, pushCloudState } from '../services/sync'
+import { mergeAppState } from '../utils/mergeState'
 
 const SYNC_PUSH_DEBOUNCE_MS = 1500
 const SYNC_POLL_INTERVAL_MS = 20000
@@ -162,30 +163,39 @@ export function WordProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
 
-  // 클라우드 동기화: 마지막으로 이 기기가 알고 있는(올렸거나 받아온) 버전의 시각.
-  // 이거보다 새 버전이 클라우드에 있을 때만 받아와서 덮어쓴다.
-  const lastKnownUpdatedAt = useRef('')
+  // 클라우드에서 받아오거나 올린 결과를 적용할 때, 그냥 덮어쓰지 않고 지금 상태와
+  // "합쳐서"(병합) 반영한다. 그래야 부모 폰/아이 태블릿을 번갈아 쓸 때 서로 추가한
+  // 단어가 사라지지 않는다. 항상 최신 state를 보려고 ref로 들고 있는다.
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  const applyFromCloud = useCallback((cloudState: AppState) => {
+    const merged = mergeAppState(stateRef.current, cloudState)
+    if (JSON.stringify(merged) !== JSON.stringify(stateRef.current)) {
+      dispatch({ type: 'IMPORT_STATE', state: merged })
+    }
+  }, [])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const updatedAt = new Date().toISOString()
-      lastKnownUpdatedAt.current = updatedAt
-      void pushCloudState(state, updatedAt)
+      void (async () => {
+        const result = await pushCloudState(state)
+        if (result) applyFromCloud(normalizeAppState(result.state))
+      })()
     }, SYNC_PUSH_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [state])
+  }, [state, applyFromCloud])
 
   const pullFromCloud = useCallback(async () => {
     try {
       const cloud = await fetchCloudState()
-      if (cloud && cloud.updatedAt > lastKnownUpdatedAt.current) {
-        lastKnownUpdatedAt.current = cloud.updatedAt
-        dispatch({ type: 'IMPORT_STATE', state: normalizeAppState(cloud.state) })
-      }
+      if (cloud) applyFromCloud(normalizeAppState(cloud.state))
     } catch {
       // 클라우드에서 받아오다 문제가 생겨도 화면은 지금 상태 그대로 유지한다.
     }
-  }, [])
+  }, [applyFromCloud])
 
   useEffect(() => {
     void pullFromCloud()
