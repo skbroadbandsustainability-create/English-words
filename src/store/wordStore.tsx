@@ -225,7 +225,10 @@ export function useWords() {
 
 export function useLatestBatch(): Batch | undefined {
   const { state } = useWords()
-  return state.batches.length > 0 ? state.batches[state.batches.length - 1] : undefined
+  return state.batches.reduce<Batch | undefined>(
+    (latest, b) => (!latest || b.createdAt > latest.createdAt ? b : latest),
+    undefined,
+  )
 }
 
 /** 연속 학습일(streak)을 studyDates로부터 계산한다. 오늘 또는 어제까지 이어져 있어야 streak으로 친다. */

@@ -27,7 +27,7 @@ export default function WordBookView() {
     }
 
     return [...state.batches]
-      .reverse()
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
       .map((b) => ({ batch: b, words: byBatch.get(b.id) ?? [] }))
       .filter((g) => g.words.length > 0)
   }, [state.words, state.batches, query])
