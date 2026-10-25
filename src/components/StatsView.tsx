@@ -22,7 +22,9 @@ function directionLabel(direction: QuizDirection): string {
 export default function StatsView() {
   const { state } = useWords()
   const streak = calcStreak(state.studyDates)
-  const recentResults = [...state.quizResults].slice(-10).reverse()
+  const recentResults = [...state.quizResults]
+    .sort((a, b) => (a.takenAt < b.takenAt ? 1 : a.takenAt > b.takenAt ? -1 : 0))
+    .slice(0, 10)
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
