@@ -7,9 +7,15 @@ import { buildQuizQuestions, generateId, hasUsableExampleSentence } from '../uti
 import type { QuizDirection, QuizQuestion as QuizQuestionType } from '../utils/words'
 import { dateKeyOf, formatDateShort, groupWordsByDate } from '../utils/dateGroups'
 import { fetchExampleSentences, RateLimitError } from '../services/aiWords'
+import { pullRandomMonster } from '../utils/monsterGacha'
+import { RARITY_LABEL } from '../data/monsters'
+import type { Monster } from '../data/monsters'
 import type { QuizResult, WordEntry } from '../types'
 
-type Stage = 'setup' | 'loading' | 'in-progress' | 'result'
+type Stage = 'setup' | 'loading' | 'in-progress' | 'reward' | 'result'
+
+// 90% 이상 맞히면 몬스터볼 뽑기 기회를 준다.
+const MONSTER_REWARD_THRESHOLD = 0.9
 
 const MAX_RATE_LIMIT_WAITS = 1
 
@@ -38,6 +44,8 @@ export default function TestView() {
   const [loadingProgress, setLoadingProgress] = useState<{ done: number; total: number } | null>(null)
   const [retryNotice, setRetryNotice] = useState<string | undefined>()
   const cancelledRef = useRef(false)
+  const [caughtMonster, setCaughtMonster] = useState<Monster | null>(null)
+  const [ballOpened, setBallOpened] = useState(false)
 
   const pool = useMemo(
     () => (selectedDate === 'all' ? state.words : state.words.filter((w) => dateKeyOf(w) === selectedDate)),
@@ -157,6 +165,20 @@ export default function TestView() {
     }
     dispatch({ type: 'RECORD_QUIZ_RESULT', result })
     dispatch({ type: 'MARK_STUDIED_TODAY' })
+
+    if (finalCorrect / questions.length >= MONSTER_REWARD_THRESHOLD) {
+      const monster = pullRandomMonster()
+      dispatch({
+        type: 'CATCH_MONSTER',
+        catch: { id: generateId(), monsterId: monster.id, caughtAt: new Date().toISOString() },
+      })
+      setCaughtMonster(monster)
+      setBallOpened(false)
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+      setStage('reward')
+      return
+    }
+
     if (finalCorrect / questions.length >= 0.7) {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
     }
@@ -254,6 +276,52 @@ export default function TestView() {
           total={questions.length}
           onAnswered={handleAnswered}
         />
+      </div>
+    )
+  }
+
+  if (stage === 'reward' && caughtMonster) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 px-4 py-16 text-center">
+        <p className="font-display text-2xl text-slate-800">90% 이상 맞혔어요! 몬스터볼 획득 🎁</p>
+
+        {!ballOpened ? (
+          <>
+            <button
+              onClick={() => setBallOpened(true)}
+              className="text-8xl transition-transform active:scale-90"
+              aria-label="몬스터볼 열기"
+            >
+              🔴
+            </button>
+            <p className="text-sm text-slate-400">몬스터볼을 눌러서 열어보세요!</p>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-8xl">{caughtMonster.emoji}</p>
+              <p className="font-display text-xl text-slate-800">{caughtMonster.name}</p>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  caughtMonster.rarity === 'legendary'
+                    ? 'bg-amber-100 text-amber-600'
+                    : caughtMonster.rarity === 'rare'
+                      ? 'bg-sky-100 text-sky-600'
+                      : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {RARITY_LABEL[caughtMonster.rarity]}
+              </span>
+            </div>
+            <p className="text-sm text-slate-400">도감에 추가됐어요!</p>
+            <button
+              onClick={() => setStage('result')}
+              className="rounded-full bg-sky-500 px-8 py-3 text-lg font-bold text-white active:scale-95"
+            >
+              확인
+            </button>
+          </>
+        )}
       </div>
     )
   }

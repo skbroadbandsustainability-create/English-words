@@ -5,6 +5,7 @@ import FlashcardView from './components/FlashcardView'
 import AddWordsView from './components/AddWordsView'
 import TestView from './components/TestView'
 import WordBookView from './components/WordBookView'
+import MonsterDexView from './components/MonsterDexView'
 import StatsView from './components/StatsView'
 import { calcStreak, useWords } from './store/wordStore'
 
@@ -32,6 +33,7 @@ function App() {
         {view === 'add' && <AddWordsView />}
         {view === 'test' && <TestView />}
         {view === 'book' && <WordBookView />}
+        {view === 'dex' && <MonsterDexView />}
         {view === 'stats' && <StatsView />}
       </main>
 

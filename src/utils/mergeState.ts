@@ -1,4 +1,4 @@
-import type { AppState, Batch, QuizResult, WordEntry } from '../types'
+import type { AppState, Batch, MonsterCatch, QuizResult, WordEntry } from '../types'
 
 function mergeById<T extends { id: string }>(a: T[], b: T[]): T[] {
   const map = new Map<string, T>()
@@ -17,6 +17,7 @@ export function mergeAppState(a: AppState, b: AppState): AppState {
     words: mergeById<WordEntry>(a.words, b.words),
     batches: mergeById<Batch>(a.batches, b.batches),
     quizResults: mergeById<QuizResult>(a.quizResults, b.quizResults),
+    monsterDex: mergeById<MonsterCatch>(a.monsterDex, b.monsterDex),
     studyDates: [...new Set([...a.studyDates, ...b.studyDates])].sort(),
     kidName: b.kidName || a.kidName,
   }

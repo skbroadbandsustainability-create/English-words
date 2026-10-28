@@ -1,10 +1,11 @@
-export type ViewKey = 'cards' | 'add' | 'test' | 'book' | 'stats'
+export type ViewKey = 'cards' | 'add' | 'test' | 'book' | 'dex' | 'stats'
 
 const ITEMS: { key: ViewKey; label: string; icon: string }[] = [
   { key: 'cards', label: '카드', icon: '🃏' },
   { key: 'add', label: '단어 추가', icon: '📸' },
   { key: 'test', label: '테스트', icon: '📝' },
   { key: 'book', label: '단어장', icon: '📖' },
+  { key: 'dex', label: '도감', icon: '🐾' },
   { key: 'stats', label: '기록', icon: '📊' },
 ]
 
@@ -16,7 +17,7 @@ interface Props {
 export default function BottomNav({ active, onChange }: Props) {
   return (
     <nav className="sticky bottom-0 z-30 border-t-2 border-sky-100 bg-white/95 backdrop-blur">
-      <div className="mx-auto grid max-w-3xl grid-cols-5">
+      <div className="mx-auto grid max-w-3xl grid-cols-6">
         {ITEMS.map((item) => (
           <button
             key={item.key}

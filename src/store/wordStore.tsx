@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { DEFAULT_STATE, STORAGE_KEY } from '../types'
-import type { AppState, Batch, QuizResult, WordEntry } from '../types'
+import type { AppState, Batch, MonsterCatch, QuizResult, WordEntry } from '../types'
 import { fetchCloudState, pushCloudState } from '../services/sync'
 import { mergeAppState } from '../utils/mergeState'
 
@@ -16,6 +16,7 @@ type Action =
   | { type: 'RECORD_QUIZ_RESULT'; result: QuizResult }
   | { type: 'MARK_STUDIED_TODAY' }
   | { type: 'SET_KID_NAME'; name: string }
+  | { type: 'CATCH_MONSTER'; catch: MonsterCatch }
   | { type: 'IMPORT_STATE'; state: AppState }
 
 function todayKey(): string {
@@ -49,6 +50,18 @@ function normalizeQuizResult(raw: unknown): QuizResult | null {
     missedWordIds: Array.isArray(r.missedWordIds)
       ? r.missedWordIds.filter((x): x is string => typeof x === 'string')
       : [],
+  }
+}
+
+/** 몬스터 뽑기 기록도, 필드가 빠져있으면 화면이 죽지 않도록 안전한 값으로 채워 넣는다. */
+function normalizeMonsterCatch(raw: unknown): MonsterCatch | null {
+  if (!raw || typeof raw !== 'object') return null
+  const c = raw as Record<string, unknown>
+  if (typeof c.id !== 'string' || typeof c.monsterId !== 'string') return null
+  return {
+    id: c.id,
+    monsterId: c.monsterId,
+    caughtAt: typeof c.caughtAt === 'string' ? c.caughtAt : new Date().toISOString(),
   }
 }
 
@@ -97,6 +110,9 @@ function normalizeAppState(parsed: unknown): AppState {
     quizResults: Array.isArray(p.quizResults)
       ? (p.quizResults as unknown[]).map(normalizeQuizResult).filter((r): r is QuizResult => r !== null)
       : [],
+    monsterDex: Array.isArray(p.monsterDex)
+      ? (p.monsterDex as unknown[]).map(normalizeMonsterCatch).filter((c): c is MonsterCatch => c !== null)
+      : [],
   }
 }
 
@@ -142,6 +158,8 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'SET_KID_NAME':
       return { ...state, kidName: action.name }
+    case 'CATCH_MONSTER':
+      return { ...state, monsterDex: [...state.monsterDex, action.catch] }
     case 'IMPORT_STATE':
       return action.state
     default:

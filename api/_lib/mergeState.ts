@@ -40,6 +40,7 @@ export function mergeAppState(a: unknown, b: unknown): Record<string, unknown> {
     words: mergeById(sa.words, sb.words),
     batches: mergeById(sa.batches, sb.batches),
     quizResults: mergeById(sa.quizResults, sb.quizResults),
+    monsterDex: mergeById(sa.monsterDex, sb.monsterDex),
     studyDates,
     kidName: (typeof sb.kidName === 'string' && sb.kidName) || (typeof sa.kidName === 'string' && sa.kidName) || undefined,
   }

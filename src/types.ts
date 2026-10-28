@@ -34,12 +34,19 @@ export interface QuizResult {
   missedWordIds: string[]
 }
 
+export interface MonsterCatch {
+  id: string
+  monsterId: string
+  caughtAt: string
+}
+
 export interface AppState {
   words: WordEntry[]
   batches: Batch[]
   quizResults: QuizResult[]
   kidName: string
   studyDates: string[] // 학습(카드/테스트)한 날짜(YYYY-MM-DD) 기록, 연속 학습일 계산용
+  monsterDex: MonsterCatch[] // 테스트 90% 이상 맞히고 몬스터볼을 뽑아서 모은 기록
 }
 
 export const STORAGE_KEY = 'english-words-v1'
@@ -50,4 +57,5 @@ export const DEFAULT_STATE: AppState = {
   quizResults: [],
   kidName: '우리 아이',
   studyDates: [],
+  monsterDex: [],
 }
