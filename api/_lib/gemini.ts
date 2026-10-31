@@ -112,7 +112,8 @@ export function describeGeminiError(err: unknown): GeminiErrorInfo {
   }
 
   if (raw.includes('UNAVAILABLE') || raw.includes('"code":503') || raw.includes('code: 503')) {
-    return { status: 503, message: 'AI 서버가 지금 많이 붐벼요. 잠시 후 다시 시도해주세요.' }
+    // 자꾸 반복되면 재시도만으로는 해결이 안 되는 경우일 수 있어서, 원인 파악을 위해 상세 내용도 같이 보낸다.
+    return { status: 503, message: 'AI 서버가 지금 많이 붐벼요. 잠시 후 다시 시도해주세요.', detail: raw }
   }
 
   return { status: 500, message: '문제가 생겼어요. 잠시 후 다시 시도해주세요.', detail: raw }

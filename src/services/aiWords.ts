@@ -47,16 +47,16 @@ function wait(ms: number): Promise<void> {
 
 /**
  * AI 서버가 가끔 일시적으로 붐빌 때(503 등), 사용자에게 바로 에러를 보여주지 않고
- * 잠깐 쉬었다가 조용히 몇 번 더 시도해본다. 429(요청 제한)는 바로 다시 해도 똑같이
- * 막히니 재시도하지 않는다.
+ * 잠깐 쉬었다가 조용히 몇 번 더 시도해본다(쉬는 시간은 매번 두 배씩 늘어남: 2초, 4초, 8초).
+ * 429(요청 제한)는 바로 다시 해도 똑같이 막히니 재시도하지 않는다.
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 2000): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 2000): Promise<T> {
   try {
     return await fn()
   } catch (err) {
     if (retries <= 0 || err instanceof NonRetryableError) throw err
     await wait(delayMs)
-    return withRetry(fn, retries - 1, delayMs)
+    return withRetry(fn, retries - 1, delayMs * 2)
   }
 }
 
