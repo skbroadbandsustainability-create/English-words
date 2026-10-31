@@ -41,13 +41,22 @@ async function throwForResponse(res: Response, fallback: string): Promise<never>
   throw new Error(message)
 }
 
-/** AI 서버가 가끔 느리게(콜드 스타트 등) 응답할 때, 사용자에게 바로 에러를 보여주지 않고 한 번 더 조용히 시도해본다. */
-async function withRetry<T>(fn: () => Promise<T>, retries = 1): Promise<T> {
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * AI 서버가 가끔 일시적으로 붐빌 때(503 등), 사용자에게 바로 에러를 보여주지 않고
+ * 잠깐 쉬었다가 조용히 몇 번 더 시도해본다. 429(요청 제한)는 바로 다시 해도 똑같이
+ * 막히니 재시도하지 않는다.
+ */
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 2000): Promise<T> {
   try {
     return await fn()
   } catch (err) {
     if (retries <= 0 || err instanceof NonRetryableError) throw err
-    return withRetry(fn, retries - 1)
+    await wait(delayMs)
+    return withRetry(fn, retries - 1, delayMs)
   }
 }
 
