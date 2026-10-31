@@ -20,18 +20,27 @@ export function getGeminiClient(): GoogleGenAI {
 // 무료 등급 한도가 훨씬 넉넉해서(분당/일일 요청 수 모두 더 큼) 이쪽으로 바꿨다.
 export const GEMINI_MODEL = 'gemini-3.1-flash-lite'
 
-// 최신 모델(위)이 전 세계적으로 수요가 몰려서 503(UNAVAILABLE)이 자주 날 때를 대비해,
-// 조금 더 오래되고 안정적으로 돌아가는 모델을 대신 써본다.
-const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash-lite'
+// 최신 모델(위)이 전 세계적으로 수요가 몰려서 503(UNAVAILABLE)이 나거나, Google이 모델을
+// 교체/폐기해서 404(NOT_FOUND)가 날 때를 대비한 대체 모델. Google 쪽에서 모델을 자주 바꾸니,
+// 이 모델도 나중에 404가 나면 그때 최신 이름으로 바꿔주면 된다.
+const GEMINI_MODEL_FALLBACK = 'gemini-3.5-flash-lite'
 
-function isUnavailableError(err: unknown): boolean {
+function isModelUnavailableError(err: unknown): boolean {
   const raw = err instanceof Error ? err.message : String(err)
-  return raw.includes('UNAVAILABLE') || raw.includes('"code":503') || raw.includes('code: 503')
+  return (
+    raw.includes('UNAVAILABLE') ||
+    raw.includes('"code":503') ||
+    raw.includes('code: 503') ||
+    raw.includes('NOT_FOUND') ||
+    raw.includes('"code":404') ||
+    raw.includes('code: 404')
+  )
 }
 
 /**
- * 기본 모델이 너무 붐벼서(503) 응답하지 못하면, 안정적인 예전 모델로 한 번 더 시도해본다.
- * 503이 아닌 다른 오류(요청 제한 등)는 그대로 올려서 describeGeminiError가 처리하게 둔다.
+ * 기본 모델이 너무 붐벼서(503) 응답하지 못하거나 Google이 모델을 바꿔서 없어졌으면(404),
+ * 대체 모델로 한 번 더 시도해본다. 그 외 오류(요청 제한 등)는 그대로 올려서
+ * describeGeminiError가 처리하게 둔다.
  */
 export async function generateContentWithFallback(
   ai: GoogleGenAI,
@@ -40,7 +49,7 @@ export async function generateContentWithFallback(
   try {
     return await ai.models.generateContent({ ...params, model: GEMINI_MODEL })
   } catch (err) {
-    if (!isUnavailableError(err)) throw err
+    if (!isModelUnavailableError(err)) throw err
     return await ai.models.generateContent({ ...params, model: GEMINI_MODEL_FALLBACK })
   }
 }
