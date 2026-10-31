@@ -1,4 +1,4 @@
-import { describeGeminiError, getGeminiClient, GEMINI_MODEL, SINGLE_WORD_SCHEMA } from './_lib/gemini.js'
+import { describeGeminiError, generateContentWithFallback, getGeminiClient, SINGLE_WORD_SCHEMA } from './_lib/gemini.js'
 import type { AiWord } from './_lib/gemini.js'
 import type { ApiRequest, ApiResponse } from './_lib/types.js'
 
@@ -24,8 +24,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   try {
     const ai = getGeminiClient()
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
